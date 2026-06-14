@@ -280,9 +280,9 @@ export function ReportsPanel() {
                   <th className="px-4 py-3 text-right">Reservation Pipeline Volume</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100/70">
                 {summary.leaderboard.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/50">
+                  <tr key={item.id} className="odd:bg-white even:bg-slate-50/50 hover:bg-teal-50/30 transition-colors">
                     <td className="px-4 py-3 font-semibold text-slate-800">{item.name}</td>
                     <td className="px-4 py-3">
                       <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
@@ -308,9 +308,9 @@ export function ReportsPanel() {
                   <th className="px-4 py-3 text-right">Raw Leaded Registration Count</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100/70">
                 {summary.monthlyRegistrations.map((m, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50">
+                  <tr key={idx} className="odd:bg-white even:bg-slate-50/50 hover:bg-teal-50/30 transition-colors">
                     <td className="px-4 py-3 font-semibold text-slate-800">{m.month}</td>
                     <td className="px-4 py-3 text-right font-bold text-slate-900">{m.count} registered lines</td>
                   </tr>
@@ -327,9 +327,9 @@ export function ReportsPanel() {
                   <th className="px-4 py-3 text-right">Claim Overlaps Sum</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100/70">
                 {summary.duplicateTrends.map((d, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50">
+                  <tr key={idx} className="odd:bg-white even:bg-slate-50/50 hover:bg-teal-50/30 transition-colors">
                     <td className="px-4 py-3 font-semibold text-slate-800">{d.status} Duplicate Flag</td>
                     <td className="px-4 py-3 text-right font-bold text-amber-700">{d.count} accounts</td>
                   </tr>
