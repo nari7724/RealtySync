@@ -1,0 +1,6 @@
+{
+  "name": "RealtySync",
+  "description": "Enterprise broker agent and client tracking platform specializing in multi-tier duplicate prevention, client booking, agent performance reports, and dual-entry conflict resolution.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
