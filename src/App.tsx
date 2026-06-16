@@ -43,6 +43,8 @@ import { AuditLogs } from "./components/AuditLogs.tsx";
 import { ReportsPanel } from "./components/ReportsPanel.tsx";
 import { ClientMasterList } from "./components/ClientMasterList.tsx";
 import { BookingList } from "./components/BookingList.tsx";
+import { DashboardCharts } from "./components/DashboardCharts.tsx";
+import { RecentActivity } from "./components/RecentActivity.tsx";
 
 export default function App() {
   // Authentication states
@@ -67,6 +69,33 @@ export default function App() {
 
   // Dashboard Stats summary
   const [statsData, setStatsData] = useState<any | null>(null);
+
+  // Recent Activities list state
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+
+  // Admin Auto-refresh rate for leaderboard & stats (in minutes, 0 means Manual/Off)
+  const [refreshInterval, setRefreshInterval] = useState<number>(0);
+
+  // Clock state in Manila time (Asia/Manila)
+  const [manilaTime, setManilaTime] = useState("");
+
+  useEffect(() => {
+    const updateTime = () => {
+      const options: Intl.DateTimeFormatOptions = {
+        timeZone: "Asia/Manila",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      };
+      const formatted = new Intl.DateTimeFormat("en-US", options).format(new Date());
+      setManilaTime(formatted);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch lists of active agents for drop downs
   const fetchAgents = async () => {
@@ -97,7 +126,11 @@ export default function App() {
   // Fetch Dashboard core KPIs
   const fetchStats = async () => {
     try {
-      const res = await fetch("/api/reports/summary");
+      let url = "/api/reports/summary";
+      if (currentUser && currentUser.role === UserRole.AGENT) {
+        url += `?agentId=${currentUser.id}`;
+      }
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setStatsData(data);
@@ -107,13 +140,44 @@ export default function App() {
     }
   };
 
+  // Fetch recent platform audit/compliance activities
+  const fetchRecentActivities = async () => {
+    setActivitiesLoading(true);
+    try {
+      const res = await fetch("/api/reports/audit-logs");
+      if (res.ok) {
+        const data = await res.json();
+        setRecentActivities(data);
+      }
+    } catch (err) {
+      console.error("Error fetching recent activities feed:", err);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (currentUser) {
       fetchAgents();
       fetchNotifications();
       fetchStats();
+      fetchRecentActivities();
     }
   }, [currentUser, refreshStamp]);
+
+  useEffect(() => {
+    const isCurrentUserAdmin = currentUser?.role === UserRole.ADMIN;
+    if (!currentUser || !isCurrentUserAdmin || refreshInterval === 0) return;
+
+    const intervalMs = refreshInterval * 60 * 1000;
+    const timer = setInterval(() => {
+      fetchStats();
+      fetchNotifications();
+      fetchRecentActivities();
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [currentUser, refreshInterval]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -377,57 +441,121 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="inline-flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-lg border border-slate-150 shadow-sm text-xs text-slate-500 font-mono">
+                <div className="inline-flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-lg border border-slate-150 shadow-sm text-xs text-slate-500 font-mono font-bold">
                   <Clock className="w-4 h-4 text-teal-600" />
-                  <span>UTC: {new Date().toISOString().substring(11, 19)}</span>
+                  <span>Manila: {manilaTime}</span>
                 </div>
               </div>
 
               {/* Stats Counters Grid */}
               {statsData ? (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-5" id="stats-summary-grid">
-                  <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Active Agents</div>
-                    <div className="text-2xl font-black text-slate-850">{statsData.totalActiveAgents}</div>
-                    <div className="text-[10px] text-teal-600 font-medium mt-1 inline-flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5" /> Checked Licences
+                !isAdmin ? (
+                  /* Agent-specific Stats Counters Grid */
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-5 animate-fade-in" id="stats-summary-grid">
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                      <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Registered Client</div>
+                      <div className="text-2xl font-black text-slate-850">{statsData.totalClients}</div>
+                      <div className="text-[10px] text-teal-600 font-medium mt-1 inline-flex items-center gap-1">
+                        Directly assigned
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Registrations</div>
-                    <div className="text-2xl font-black text-slate-850">{statsData.totalClients}</div>
-                    <div className="text-[10px] text-slate-500 font-medium mt-1">
-                      {statsData.registeredToday > 0 ? (
-                        <span className="text-green-600 font-bold">+ {statsData.registeredToday} Registered Today</span>
-                      ) : "Stable acquisition pipeline"}
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                      <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Open Bookings</div>
+                      <div className="text-2xl font-black text-slate-850">{statsData.totalOpenBookings}</div>
+                      <div className="text-[10px] text-indigo-600 font-medium mt-1 inline-flex items-center gap-1">
+                        Pipelines active
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Reservation Count</div>
-                    <div className="text-2xl font-black text-slate-850">{statsData.totalBookings}</div>
-                    <div className="text-[10px] text-slate-500 font-medium mt-1">
-                      {statsData.bookingsToday > 0 ? (
-                        <span className="text-green-600 font-bold">+ {statsData.bookingsToday} reserves today</span>
-                      ) : "All properties consolidated"}
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                      <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Reservation Count</div>
+                      <div className="text-2xl font-black text-slate-850">{statsData.totalBookings}</div>
+                      <div className="text-[10px] text-slate-500 font-medium mt-1">
+                        Total submitted
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="text-xs text-slate-450 font-bold uppercase tracking-wider mb-1">Duplicate Overlaps</div>
-                    <div className="text-2xl font-black text-amber-600">{statsData.totalDuplicates}</div>
-                    <div className="text-[10px] mt-1">
-                      {statsData.totalDuplicates > 0 ? (
-                        <span className="text-amber-600 font-bold flex items-center gap-1 cursor-pointer" onClick={() => isAdmin && setCurrentTab("conflicts")}>
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Dual Review Required
-                        </span>
-                      ) : (
-                        <span className="text-green-600 font-medium">No conflicts registered</span>
-                      )}
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                      <div className="text-xs text-slate-450 font-bold uppercase tracking-wider mb-1">Total Completed Sales</div>
+                      <div className="text-2xl font-black text-slate-855 text-slate-800">{statsData.totalCompletedSales}</div>
+                      <div className="text-[10px] text-emerald-600 font-bold mt-1">
+                        Approved contracts
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                      <div className="text-xs text-slate-455 text-slate-400 font-bold uppercase tracking-wider mb-1 col-span-1 truncate">Total Down Payment</div>
+                      <div className="text-lg font-bold text-teal-700 font-mono truncate pt-0.5" title={`PHP ${(statsData.totalDownPayment || 0).toLocaleString()}`}>
+                        PHP {(statsData.totalDownPayment || 0).toLocaleString()}
+                      </div>
+                      <div className="text-[10px] text-slate-450 mt-1 select-none">
+                        Accumulated fees
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                      <div className="text-xs text-slate-450 font-bold uppercase tracking-wider mb-1">Duplicate Overlaps</div>
+                      <div className={`text-2xl font-black ${statsData.totalDuplicates > 0 ? "text-amber-600" : "text-green-600"}`}>
+                        {statsData.totalDuplicates}
+                      </div>
+                      <div className="text-[10px] mt-1">
+                        {statsData.totalDuplicates > 0 ? (
+                          <span className="text-amber-600 font-bold flex items-center gap-0.5">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Double claims
+                          </span>
+                        ) : (
+                          <span className="text-green-600 font-medium">Clean databases</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  /* Admin-specific Stats Counters Grid */
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-5" id="stats-summary-grid">
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
+                      <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Active Agents</div>
+                      <div className="text-2xl font-black text-slate-850">{statsData.totalActiveAgents}</div>
+                      <div className="text-[10px] text-teal-600 font-medium mt-1 inline-flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Checked Licences
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
+                      <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Registrations</div>
+                      <div className="text-2xl font-black text-slate-850">{statsData.totalClients}</div>
+                      <div className="text-[10px] text-slate-500 font-medium mt-1">
+                        {statsData.registeredToday > 0 ? (
+                          <span className="text-green-600 font-bold">+ {statsData.registeredToday} Registered Today</span>
+                        ) : "Stable acquisition pipeline"}
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
+                      <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Reservation Count</div>
+                      <div className="text-2xl font-black text-slate-850">{statsData.totalBookings}</div>
+                      <div className="text-[10px] text-slate-500 font-medium mt-1">
+                        {statsData.bookingsToday > 0 ? (
+                          <span className="text-green-600 font-bold">+ {statsData.bookingsToday} reserves today</span>
+                        ) : "All properties consolidated"}
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
+                      <div className="text-xs text-slate-450 font-bold uppercase tracking-wider mb-1">Duplicate Overlaps</div>
+                      <div className="text-2xl font-black text-amber-600">{statsData.totalDuplicates}</div>
+                      <div className="text-[10px] mt-1">
+                        {statsData.totalDuplicates > 0 ? (
+                          <span className="text-amber-600 font-bold flex items-center gap-1 cursor-pointer" onClick={() => isAdmin && setCurrentTab("conflicts")}>
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Dual Review Required
+                          </span>
+                        ) : (
+                          <span className="text-green-600 font-medium">No conflicts registered</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="animate-pulse bg-white rounded-xl h-28 border border-slate-100"></div>
               )}
@@ -479,10 +607,10 @@ export default function App() {
                           <UserCheck className="w-4 h-4" />
                         </div>
                         <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                          Client registries
+                          My Clients
                           <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
                         </h3>
-                        <p className="text-xs text-slate-450 mt-1">Browse client registers, mobile claims, and allocate booking reservation sheets.</p>
+                        <p className="text-xs text-slate-455 mt-1">Browse client registers, mobile claims, and allocate booking reservation sheets.</p>
                       </button>
 
                       {isAdmin ? (
@@ -508,10 +636,10 @@ export default function App() {
                             <PlusCircle className="w-4 h-4" />
                           </div>
                           <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                            Construct Client Registries
+                            Register Client
                             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
                           </h3>
-                          <p className="text-xs text-slate-450 mt-1">Run fuzzy likeness checking and register new real estate customers instantly.</p>
+                          <p className="text-xs text-slate-455 mt-1">Run fuzzy likeness checking and register new real estate customers instantly.</p>
                         </button>
                       )}
                     </div>
@@ -521,15 +649,37 @@ export default function App() {
                 {/* Board Column B: Agent Performance Leaderboard */}
                 <div className="lg:col-span-1 space-y-6">
                   <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                        <Award className="w-4 h-4 text-amber-500" />
-                        Performance Leaderboard
-                      </h3>
+                    <div className="flex flex-col gap-2.5 border-b border-slate-100 pb-2">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                          <Award className="w-4 h-4 text-amber-500" />
+                          Performance Leaderboard
+                        </h3>
+                        {isAdmin && (
+                          <button onClick={() => setCurrentTab("reports")} className="text-[10px] text-teal-600 hover:underline font-bold uppercase">
+                            All reports
+                          </button>
+                        )}
+                      </div>
+
                       {isAdmin && (
-                        <button onClick={() => setCurrentTab("reports")} className="text-[10px] text-teal-600 hover:underline font-bold uppercase">
-                          All reports
-                        </button>
+                        <div className="flex items-center justify-between pt-0.5 text-[11px] text-slate-500">
+                          <span className="flex items-center gap-1 text-slate-450 font-medium select-none">
+                            <Clock className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                             Leaderboard Refresh:
+                          </span>
+                          <select
+                            id="leaderboard-refresh-interval"
+                            value={refreshInterval}
+                            onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                            className="bg-slate-50 hover:bg-slate-100 border border-slate-200/85 rounded-lg px-2 py-1 text-[11px] text-slate-700 font-bold focus:outline-none focus:ring-1 focus:ring-teal-600 cursor-pointer transition-all"
+                          >
+                            <option value={0}>Manual Off</option>
+                            <option value={1}>1 Min Interval</option>
+                            <option value={5}>5 Min Interval</option>
+                            <option value={10}>10 Min Interval</option>
+                          </select>
+                        </div>
                       )}
                     </div>
 
@@ -561,6 +711,25 @@ export default function App() {
                 </div>
 
               </div>
+
+              {/* Graphical Charts Section */}
+              <div className="pt-2">
+                <DashboardCharts 
+                  statsData={statsData} 
+                  isAdmin={isAdmin} 
+                  currentUser={currentUser} 
+                />
+              </div>
+
+              {/* Recent System Activity Timeline Feed */}
+              <div className="pt-2">
+                <RecentActivity 
+                  logs={recentActivities} 
+                  loading={activitiesLoading} 
+                  currentUser={currentUser} 
+                />
+              </div>
+
             </div>
           )}
 

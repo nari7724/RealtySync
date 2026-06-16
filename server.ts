@@ -270,7 +270,15 @@ function loadDB(): {
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, "utf-8");
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return {
+        agents: Array.isArray(parsed.agents) ? parsed.agents : DEFAULT_AGENTS,
+        clients: Array.isArray(parsed.clients) ? parsed.clients : DEFAULT_CLIENTS,
+        bookings: Array.isArray(parsed.bookings) ? parsed.bookings : DEFAULT_BOOKINGS,
+        dualEntries: Array.isArray(parsed.dualEntries) ? parsed.dualEntries : DEFAULT_DUAL_ENTRIES,
+        notifications: Array.isArray(parsed.notifications) ? parsed.notifications : DEFAULT_NOTIFICATIONS,
+        auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : DEFAULT_AUDIT_LOGS,
+      };
     }
   } catch (err) {
     console.error("Error loading mock file database, recreating:", err);
@@ -921,18 +929,9 @@ async function startServer() {
 
   // 7. REPORTS MODULE ENDPOINTS & EXPORTS
   app.get("/api/reports/summary", (req, res) => {
-    // Gather statistics
-    const totalActiveAgents = db.agents.filter(a => a.status === "Active").length;
-    const totalClients = db.clients.length;
-    const totalBookings = db.bookings.length;
-    const totalDuplicates = db.clients.filter(c => c.duplicateStatus !== "None").length;
+    const { agentId } = req.query;
 
-    // Filter booked today
-    const todayStr = new Date().toISOString().split("T")[0];
-    const registeredToday = db.clients.filter(c => c.dateRegistered.startsWith(todayStr)).length;
-    const bookingsToday = db.bookings.filter(b => b.createdAt.startsWith(todayStr)).length;
-
-    // Agent Leaderboard
+    // Agent Leaderboard (Retained and global for both roles)
     const leaderboard = db.agents.map(a => {
       const agentClients = db.clients.filter(c => c.assignedAgentId === a.id);
       const agentBookings = db.bookings.filter(b => b.agentId === a.id);
@@ -950,33 +949,78 @@ async function startServer() {
       };
     }).sort((a,b) => b.salesVolume - a.salesVolume);
 
-    // Monthly Analytics trend (June & May)
-    const monthlyRegistrations = [
-      { month: "Jan", count: 2 },
-      { month: "Feb", count: 4 },
-      { month: "Mar", count: 5 },
-      { month: "Apr", count: 3 },
-      { month: "May", count: 8 },
-      { month: "Jun", count: db.clients.filter(c => c.dateRegistered.includes("-06-")).length || 6 }
-    ];
+    if (agentId) {
+      const targetAgentId = String(agentId);
+      const agentClients = db.clients.filter(c => c.assignedAgentId === targetAgentId);
+      const agentBookings = db.bookings.filter(b => b.agentId === targetAgentId);
 
-    const duplicateTrends = [
-      { status: "Strong", count: db.clients.filter(c => c.duplicateStatus === "Strong").length },
-      { status: "Possible", count: db.clients.filter(c => c.duplicateStatus === "Possible").length },
-      { status: "None", count: db.clients.filter(c => c.duplicateStatus === "None").length }
-    ];
+      const totalClients = agentClients.length;
+      const totalOpenBookings = agentBookings.filter(b => ["New", "Reserved", "Processing"].includes(b.status)).length;
+      const totalBookings = agentBookings.length; // total reservation count
+      const totalCompletedSales = agentBookings.filter(b => b.status === "Approved").length;
+      const totalDownPayment = agentBookings
+        .filter(b => b.status !== "Cancelled")
+        .reduce((sum, b) => sum + b.reservationAmount, 0);
+      const totalDuplicates = agentClients.filter(c => c.duplicateStatus !== "None").length;
 
-    res.json({
-      totalActiveAgents,
-      totalClients,
-      totalBookings,
-      totalDuplicates,
-      registeredToday,
-      bookingsToday,
-      leaderboard,
-      monthlyRegistrations,
-      duplicateTrends
-    });
+      // Filter booked today
+      const todayStr = new Date().toISOString().split("T")[0];
+      const registeredToday = agentClients.filter(c => c.dateRegistered.startsWith(todayStr)).length;
+      const bookingsToday = agentBookings.filter(b => b.createdAt.startsWith(todayStr)).length;
+
+      res.json({
+        totalClients,
+        totalOpenBookings,
+        totalBookings,
+        totalCompletedSales,
+        totalDownPayment,
+        totalDuplicates,
+        registeredToday,
+        bookingsToday,
+        leaderboard,
+        monthlyRegistrations: [],
+        duplicateTrends: []
+      });
+    } else {
+      // Gather global statistics
+      const totalActiveAgents = db.agents.filter(a => a.status === "Active").length;
+      const totalClients = db.clients.length;
+      const totalBookings = db.bookings.length;
+      const totalDuplicates = db.clients.filter(c => c.duplicateStatus !== "None").length;
+
+      // Filter booked today
+      const todayStr = new Date().toISOString().split("T")[0];
+      const registeredToday = db.clients.filter(c => c.dateRegistered.startsWith(todayStr)).length;
+      const bookingsToday = db.bookings.filter(b => b.createdAt.startsWith(todayStr)).length;
+
+      // Monthly Analytics trend (June & May)
+      const monthlyRegistrations = [
+        { month: "Jan", count: 2 },
+        { month: "Feb", count: 4 },
+        { month: "Mar", count: 5 },
+        { month: "Apr", count: 3 },
+        { month: "May", count: 8 },
+        { month: "Jun", count: db.clients.filter(c => c.dateRegistered.includes("-06-")).length || 6 }
+      ];
+
+      const duplicateTrends = [
+        { status: "Strong", count: db.clients.filter(c => c.duplicateStatus === "Strong").length },
+        { status: "Possible", count: db.clients.filter(c => c.duplicateStatus === "Possible").length },
+        { status: "None", count: db.clients.filter(c => c.duplicateStatus === "None").length }
+      ];
+
+      res.json({
+        totalActiveAgents,
+        totalClients,
+        totalBookings,
+        totalDuplicates,
+        registeredToday,
+        bookingsToday,
+        leaderboard,
+        monthlyRegistrations,
+        duplicateTrends
+      });
+    }
   });
 
   // Audit Logs view
