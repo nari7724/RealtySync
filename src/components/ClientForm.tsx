@@ -31,8 +31,8 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
   const [checking, setChecking] = useState(false);
   const [errorObj, setErrorObj] = useState<string | null>(null);
 
-  // Duplicate states
-  const [showWarningModal, setShowWarningModal] = useState(false);
+  // Duplicate and confirmation states
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [dupResult, setDupResult] = useState<DuplicateCheckResult | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -42,12 +42,46 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
     });
   };
 
-  const handleValidateAndSubmit = async (e: React.FormEvent, force = false) => {
+  const handleValidateAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorObj(null);
 
+    // Business Logic & Input Validations
+    const nameRegex = /^[A-Za-z\s.\-]+$/;
+    const phoneRegex = /^(09|\+639|639)\d{9}$/;
+
     if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.mobileNumber.trim() || !formData.address.trim()) {
       setErrorObj("Please complete all required fields (*).");
+      return;
+    }
+
+    if (!nameRegex.test(formData.firstName.trim())) {
+      setErrorObj("First name must only contain alphabetical letters, dots, dashes, or spaces.");
+      return;
+    }
+
+    if (!nameRegex.test(formData.lastName.trim())) {
+      setErrorObj("Last name must only contain alphabetical letters, dots, dashes, or spaces.");
+      return;
+    }
+
+    if (formData.middleName.trim() && !nameRegex.test(formData.middleName.trim())) {
+      setErrorObj("Middle name must only contain alphabetical letters, dots, dashes, or spaces.");
+      return;
+    }
+
+    if (!phoneRegex.test(formData.mobileNumber.trim())) {
+      setErrorObj("Mobile number must be a valid Philippine mobile number format (e.g. 09171234567, +639171234567, or 639171234567).");
+      return;
+    }
+
+    if (formData.address.trim().length < 10) {
+      setErrorObj("Please enter a more descriptive address (minimum 10 characters).");
+      return;
+    }
+
+    if (formData.facebookProfileLink.trim() && formData.facebookProfileLink.includes(" ")) {
+      setErrorObj("Social Media Profile Link cannot contain spaces.");
       return;
     }
 
@@ -73,16 +107,8 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
 
       const dupData: DuplicateCheckResult = await checkRes.json();
       setChecking(false);
-
-      if (dupData.isDuplicate && !force) {
-        // High matching score exists, trigger modal alert
-        setDupResult(dupData);
-        setShowWarningModal(true);
-        return;
-      }
-
-      // No duplicate issues or user chose 'Proceed Anyway' override
-      submitClient();
+      setDupResult(dupData);
+      setShowConfirmModal(true); // Always ask confirmation before saving!
     } catch (err: any) {
       setChecking(false);
       setErrorObj(err.message || "An unexpected network error occurred.");
@@ -119,7 +145,7 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
       }
 
       setLoading(false);
-      setShowWarningModal(false);
+      setShowConfirmModal(false);
       onSuccess();
     } catch (err: any) {
       setLoading(false);
@@ -153,7 +179,7 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
         </div>
       )}
 
-      <form onSubmit={(e) => handleValidateAndSubmit(e, false)} className="space-y-5">
+      <form onSubmit={handleValidateAndSubmit} className="space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">First Name *</label>
@@ -333,105 +359,120 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
         </div>
       </form>
 
-      {/* DUPLICATE WARNING MODAL OVERLAY */}
-      {showWarningModal && dupResult && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="duplicate-warning-modal">
+      {/* CONFIRMATION MODAL OVERLAY */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="client-confirm-modal">
           <div className="bg-white rounded-xl border border-slate-100 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
-            {/* Header */}
-            <div className="bg-amber-50 border-b border-amber-100 p-5 flex items-start gap-4">
-              <div className="p-2.5 bg-amber-100 text-amber-800 rounded-full shrink-0">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 leading-snug">
-                  Duplicate Client Alert!
-                </h3>
-                <p className="text-sm text-slate-600 mt-1">
-                  This client name or phone appears to already exist in RealtySync's tracking workspace.
-                </p>
-              </div>
-            </div>
-
-            {/* Content Details */}
-            <div className="p-5 space-y-4">
-              <div className="bg-slate-50 p-4 rounded-lg space-y-2.5 text-sm">
-                <div className="flex justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500 font-medium">Duplicate Risk Level:</span>
-                  <span className={`font-bold uppercase ${dupResult.status === "Strong Duplicate" ? "text-red-600 animate-pulse" : "text-amber-600"}`}>
-                    {dupResult.status} ({dupResult.score}%)
-                  </span>
+            
+            {/* Header dependent on whether duplicate is found or not */}
+            {dupResult?.isDuplicate ? (
+              <div className="bg-amber-50 border-b border-amber-100 p-5 flex items-start gap-4">
+                <div className="p-2.5 bg-amber-100 text-amber-800 rounded-full shrink-0">
+                  <AlertTriangle className="w-6 h-6 animate-pulse" />
                 </div>
-
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Owning Agent:</span>
-                  <span className="font-semibold text-slate-800">{dupResult.existingAgentName}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-slate-500">First Registered:</span>
-                  <span className="text-slate-800">
-                    {dupResult.existingRegistrationDate ? new Date(dupResult.existingRegistrationDate).toLocaleDateString(undefined, {
-                      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                    }) : "N/A"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Similarity Matrix Breakdown */}
-              {dupResult.scoreBreakdown && (
                 <div>
-                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
-                    Duplicate Score Breakdown
-                  </h4>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-slate-50 p-2.5 rounded-lg text-center border border-slate-100">
-                      <div className="text-xs font-medium text-slate-500 mb-0.5">Name Jaro-Winkler</div>
-                      <div className="text-base font-bold text-slate-800">{dupResult.scoreBreakdown.nameSimilarity}%</div>
-                    </div>
-                    <div className="bg-slate-50 p-2.5 rounded-lg text-center border border-slate-100">
-                      <div className="text-xs font-medium text-slate-500 mb-0.5">Phone Exact</div>
-                      <div className="text-base font-bold text-slate-800">{dupResult.scoreBreakdown.phoneMatch}%</div>
-                    </div>
-                    <div className="bg-slate-50 p-2.5 rounded-lg text-center border border-slate-100">
-                      <div className="text-xs font-medium text-slate-500 mb-0.5">Address Cosine</div>
-                      <div className="text-base font-bold text-slate-800">{dupResult.scoreBreakdown.addressSimilarity}%</div>
-                    </div>
+                  <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                    Duplicate Integrity Alert detected!
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    RealtySync Duplicate System detected a potential overlap with an existing register.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-teal-50 border-b border-teal-100 p-5 flex items-start gap-4">
+                <div className="p-2.5 bg-teal-100 text-teal-800 rounded-full shrink-0">
+                  <Sparkles className="w-6 h-6 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                    Confirm Client Registration
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Please confirm the client details below to finalize register save.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Profile Summary Info */}
+            <div className="p-5 space-y-4">
+              <div className="bg-slate-50 p-4 rounded-lg space-y-3 text-sm">
+                <div className="flex border-b border-slate-100 pb-1.5 justify-between">
+                  <span className="text-slate-500 font-medium">Customer Name:</span>
+                  <span className="font-semibold text-slate-800">{formData.firstName} {formData.middleName} {formData.lastName}</span>
+                </div>
+                <div className="flex border-b border-slate-100 pb-1.5 justify-between">
+                  <span className="text-slate-500 font-medium">Contact Number:</span>
+                  <span className="font-mono text-slate-800">{formData.mobileNumber}</span>
+                </div>
+                <div className="flex border-b border-slate-100 pb-1.5 justify-between">
+                  <span className="text-slate-500 font-medium">Address:</span>
+                  <span className="text-slate-800 truncate max-w-[240px]" title={formData.address}>{formData.address}</span>
+                </div>
+                {formData.facebookProfileLink && (
+                  <div className="flex border-b border-slate-100 pb-1.5 justify-between">
+                    <span className="text-slate-500 font-medium">Social Profile:</span>
+                    <span className="text-slate-800 truncate max-w-[240px] font-mono text-xs">{formData.facebookProfileLink}</span>
                   </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Lead Source:</span>
+                  <span className="text-slate-800 font-semibold">{formData.sourceOfLead}</span>
+                </div>
+              </div>
+
+              {/* DUPLICATE WARNING BLOCK IN THE PROMPT */}
+              {dupResult?.isDuplicate && (
+                <div className="bg-red-50 border border-red-100 p-4 rounded-lg text-sm space-y-2">
+                  <div className="font-bold text-red-800 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-red-600" />
+                    Possible Dual Entry Info:
+                  </div>
+                  <div className="text-xs text-slate-705 space-y-1 font-medium">
+                    <p>• Duplicate Record Client ID: <span className="font-mono font-bold text-red-850 bg-red-100/60 px-1 py-0.5 rounded">{dupResult.existingClientId}</span></p>
+                    <p>• Registered Agent Name: <span className="font-bold text-red-850">{dupResult.existingAgentName}</span></p>
+                    <p>• Similarity Match Status: <span className="text-red-700 font-bold bg-white/70 px-1 py-0.5 rounded shadow-sm">{dupResult.status} ({dupResult.score}%)</span></p>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-red-600 font-semibold mt-2.5">
+                    Warning: Clicking "Confirm & Register" will register this anyway and file a dual entry flag in the review queue.
+                  </p>
                 </div>
               )}
 
-              <div className="bg-amber-50/50 border border-amber-100/70 p-3.5 rounded-lg text-xs leading-relaxed text-amber-800">
-                <strong>Attention:</strong> Duplicate claim rules require broker oversight. Saving may flag this profile in the **Broker Dual Entry Tracking Queue** for immediate audit investigation. 
-              </div>
+              <p className="text-xs text-slate-550">
+                Are you sure you want to proceed and save this registration record?
+              </p>
             </div>
 
-            {/* Actions */}
-            <div className="bg-slate-50 border-t border-slate-100 px-5 py-4 flex justify-between gap-3">
+            {/* Modal Actions */}
+            <div className="bg-slate-50 border-t border-slate-100 px-5 py-4 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setShowWarningModal(false)}
-                id="duplicate-btn-override-cancel"
+                onClick={() => setShowConfirmModal(false)}
                 className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
               >
-                No, Cancel Submission
+                No, Back to Form
               </button>
               <button
                 type="button"
                 onClick={submitClient}
                 disabled={loading}
-                id="duplicate-btn-override-save"
-                className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 rounded-lg transition-all inline-flex items-center gap-1.5 shadow-sm hover:shadow cursor-pointer"
+                className={`px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all inline-flex items-center gap-1.5 shadow-sm hover:shadow cursor-pointer ${
+                  dupResult?.isDuplicate ? "bg-amber-600 hover:bg-amber-700" : "bg-teal-700 hover:bg-teal-850"
+                }`}
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Recording Override...
+                    Saving...
                   </>
                 ) : (
-                  "Proceed Anyway"
+                  "Confirm & Save"
                 )}
               </button>
             </div>
+
           </div>
         </div>
       )}

@@ -47,17 +47,20 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
   // Modals status
   const [bookingClient, setBookingClient] = useState<Client | null>(null);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [selectedOverlapClient, setSelectedOverlapClient] = useState<Client | null>(null);
+  const [allDualEntries, setAllDualEntries] = useState<any[]>([]);
 
-  // New Booking Form States
+  // New Appointment Form States
   const [bookingFormData, setBookingFormData] = useState({
-    project: "",
-    property: "",
-    reservationDate: new Date().toISOString().split('T')[0],
-    reservationAmount: "",
-    status: "New" as BookingStatus,
+    appointmentType: "site visit" as any,
+    appointmentDate: new Date().toISOString().split('T')[0],
+    appointmentTime: "10:00",
+    location: "",
     notes: "",
+    status: "New" as any,
   });
   const [bookingSaving, setBookingSaving] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   // Edit Client Form State
   const [clientFormData, setClientFormData] = useState({
@@ -109,17 +112,31 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
     }
   };
 
+  const fetchDualEntries = async () => {
+    try {
+      const res = await fetch("/api/dual-entries");
+      if (res.ok) {
+        const data = await res.json();
+        setAllDualEntries(data);
+      }
+    } catch (e) {
+      console.error("Error fetching dual entries:", e);
+    }
+  };
+
   useEffect(() => {
     fetchClients();
+    fetchDualEntries();
   }, [page, search, selectedAgent, selectedDupStatus, triggerRefreshStamp]);
 
   const handleBookingOpen = (client: Client) => {
     setBookingClient(client);
+    setBookingError(null);
     setBookingFormData({
-      project: "",
-      property: "",
-      reservationDate: new Date().toISOString().split('T')[0],
-      reservationAmount: "10000",
+      appointmentType: "site visit",
+      appointmentDate: new Date().toISOString().split('T')[0],
+      appointmentTime: "10:00",
+      location: "",
       status: "New",
       notes: "",
     });
@@ -128,6 +145,23 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingClient) return;
+    setBookingError(null);
+
+    // Dynamic, strict client-side validation
+    if (!bookingFormData.appointmentDate) {
+      setBookingError("Please select a valid appointment date.");
+      return;
+    }
+    if (!bookingFormData.appointmentTime) {
+      setBookingError("Please specify a scheduled time (e.g., 10:00).");
+      return;
+    }
+    if (bookingFormData.appointmentType === "site visit" && !bookingFormData.location.trim()) {
+      setBookingError("Please input a designated location for the site visit.");
+      return;
+    }
+
+    const combinedDateTime = `${bookingFormData.appointmentDate}T${bookingFormData.appointmentTime}`;
 
     setBookingSaving(true);
     try {
@@ -136,11 +170,12 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: bookingClient.id,
-          project: bookingFormData.project,
-          property: bookingFormData.property,
-          reservationDate: bookingFormData.reservationDate,
-          reservationAmount: Number(bookingFormData.reservationAmount) || 0,
-          status: bookingFormData.status,
+          appointmentType: bookingFormData.appointmentType,
+          appointmentDate: bookingFormData.appointmentDate,
+          appointmentTime: bookingFormData.appointmentTime,
+          dateTime: combinedDateTime,
+          location: bookingFormData.location,
+          status: bookingFormData.status || "New",
           notes: bookingFormData.notes,
           userContext: {
             id: currentUser.id,
@@ -150,12 +185,17 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
         }),
       });
 
-      if (res.ok) {
-        setBookingClient(null);
-        fetchClients();
+      if (!res.ok) {
+        const errData = await res.json();
+        setBookingError(errData.error || "The client already has an appointment scheduled at this exact date and time. Please select another slot.");
+        return;
       }
+
+      setBookingClient(null);
+      fetchClients();
     } catch (err) {
-      console.error("Booking creation error:", err);
+      console.error("Appointment creation error:", err);
+      setBookingError("Failed to schedule appointment. Please check network connectivity.");
     } finally {
       setBookingSaving(false);
     }
@@ -301,11 +341,9 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100">
-                  <th className="px-6 py-4">Client Contact</th>
+                  <th className="px-6 py-4">Client Information</th>
                   <th className="px-6 py-4">SaaS Overlap Integrity</th>
-                  <th className="px-6 py-4">Registration Timeline</th>
-                  <th className="px-6 py-4">Representative</th>
-                  <th className="px-6 py-4">FB Link / Src</th>
+                  <th className="px-6 py-4 flex-1">Registration Timeline</th>
                   <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
               </thead>
@@ -313,61 +351,75 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                 {clients.map((client) => (
                   <tr key={client.id} className="hover:bg-slate-50/40 transition-colors">
                     <td className="px-6 py-4">
-                      <div>
+                      <div className="space-y-1">
                         <div className="font-bold text-slate-900 leading-snug">{client.firstName} {client.middleName ? `${client.middleName} ` : ""}{client.lastName}</div>
-                        <div className="text-xs text-slate-500 mt-1 flex items-center gap-1 font-mono">
-                          <span>{client.mobileNumber}</span>
-                          <span className="text-slate-350">|</span>
-                          <span className="truncate max-w-[150px]" title={client.address}>{client.address}</span>
+                        <div className="text-xs text-slate-600 font-semibold font-mono">{client.mobileNumber}</div>
+                        <div className="text-xs text-slate-500 font-medium" title={client.address}>{client.address}</div>
+                        {client.facebookProfileLink && (
+                          <div className="text-[11px] text-teal-600 font-mono font-medium truncate max-w-[280px] bg-slate-50 border border-slate-100/50 px-1.5 py-0.5 rounded inline-block">
+                            {client.facebookProfileLink}
+                          </div>
+                        )}
+                        <div className="text-[10px] text-teal-650 bg-teal-50 px-1.5 py-0.5 rounded inline-block mt-1 font-medium select-none ml-1">
+                          Source: {client.sourceOfLead}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-xs">
                       {client.duplicateStatus === "Strong" ? (
-                        <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 font-bold px-2 py-0.5 rounded border border-red-100 uppercase tracking-wide animate-pulse">
+                        <button
+                          onClick={() => setSelectedOverlapClient(client)}
+                          title="Click to view duplicate details & legend"
+                          type="button"
+                          className="inline-flex items-center gap-1 bg-red-50 text-red-700 font-bold px-2 py-0.5 rounded border border-red-100 uppercase tracking-wide animate-pulse cursor-pointer hover:bg-red-100 transition-all text-left"
+                        >
                           <AlertTriangle className="w-3.5 h-3.5" />
                           Strong Duplicate
-                        </span>
+                        </button>
                       ) : client.duplicateStatus === "Possible" ? (
-                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded border border-amber-100 uppercase tracking-wide">
+                        <button
+                          onClick={() => setSelectedOverlapClient(client)}
+                          title="Click to view duplicate details & legend"
+                          type="button"
+                          className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded border border-amber-100 uppercase tracking-wide cursor-pointer hover:bg-amber-100 transition-all text-left"
+                        >
                           <AlertTriangle className="w-3.5 h-3.5" />
                           Possible Duplicate
-                        </span>
+                        </button>
                       ) : (
-                        <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 font-bold px-2 py-0.5 rounded border border-green-100 uppercase tracking-wide">
+                        <button
+                          onClick={() => setSelectedOverlapClient(client)}
+                          title="Click to view duplicate system legend"
+                          type="button"
+                          className="inline-flex items-center gap-1 bg-green-50 text-green-700 font-bold px-2 py-0.5 rounded border border-green-100 uppercase tracking-wide cursor-pointer hover:bg-green-100 transition-all text-left"
+                        >
                           Clean Record
-                        </span>
+                        </button>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-slate-500 text-xs font-mono">
                       {new Date(client.dateRegistered).toLocaleDateString(undefined, {
-                        month: "short", day: "numeric", year: "numeric", hour: "2-digit"
+                        month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit"
                       })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-800 text-xs">{client.assignedAgentName}</div>
-                    </td>
-                    <td className="px-6 py-4 max-w-[150px]">
-                      <div className="text-xs truncate text-slate-650 font-mono">{client.facebookProfileLink || "—"}</div>
-                      <div className="text-[10px] text-teal-650 bg-teal-50 px-1.5 py-0.5 rounded inline-block mt-1 font-medium">{client.sourceOfLead}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center items-center gap-2">
                         <button
                           onClick={() => handleBookingOpen(client)}
                           id={`client-book-btn-${client.id}`}
-                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
                         >
                           <BookOpen className="w-3.5 h-3.5" />
-                          Reserve Booking
+                          Set an Appointment
                         </button>
 
                         <button
                           onClick={() => handleEditOpen(client)}
                           id={`client-edit-btn-${client.id}`}
-                          className="p-1 px-2 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-100 rounded-lg text-xs inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
+                          Edit
                         </button>
                       </div>
                     </td>
@@ -402,14 +454,14 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
         </div>
       )}
 
-      {/* MODAL WINDOWS A: CREATE BOOKING FOR SELECTED CLIENT */}
+      {/* MODAL WINDOWS A: SET AN APPOINTMENT FOR SELECTED CLIENT */}
       {bookingClient && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="booking-modal-overlay">
           <div className="bg-white rounded-xl border border-slate-100 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-teal-700" />
-                <h3 className="font-bold text-slate-900 text-md">Register Customer Booking</h3>
+                <Calendar className="w-4 h-4 text-teal-700" />
+                <h3 className="font-bold text-slate-900 text-md">Set an Appointment</h3>
               </div>
               <button onClick={() => setBookingClient(null)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
@@ -417,94 +469,95 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
             </div>
 
             <form onSubmit={handleBookingSubmit} className="p-6 space-y-4">
-              <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-100">
-                <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Target Customer</div>
-                <div className="font-bold text-slate-900 text-md mt-0.5">{bookingClient.firstName} {bookingClient.lastName}</div>
-                <div className="text-xs text-slate-550 mt-1 flex gap-2">
-                  <span>Phone: {bookingClient.mobileNumber}</span>
-                  <span className="text-slate-300">|</span>
-                  <span>Agent rep: {bookingClient.assignedAgentName}</span>
+              {/* Dynamic Error Indicator */}
+              {bookingError && (
+                <div className="bg-red-50 text-red-700 p-3 rounded-lg text-xs font-semibold flex items-start gap-2 border border-red-100 animate-pulse">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-650" />
+                  <span>{bookingError}</span>
                 </div>
+              )}
+
+              {/* Target Customer Details */}
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1.5 text-xs">
+                <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Client Information</div>
+                <div className="font-bold text-slate-900 text-sm">{bookingClient.firstName} {bookingClient.middleName ? `${bookingClient.middleName} ` : ""}{bookingClient.lastName}</div>
+                <div className="text-slate-600 font-medium">Contact: <span className="font-mono font-bold text-slate-800">{bookingClient.mobileNumber}</span></div>
+                <div className="text-slate-500 truncate" title={bookingClient.address}>Address: <span className="font-semibold text-slate-700">{bookingClient.address}</span></div>
+                {bookingClient.facebookProfileLink && (
+                  <div className="text-slate-500 truncate">Social Media Link: <span className="font-mono text-teal-650 font-bold">{bookingClient.facebookProfileLink}</span></div>
+                )}
+                <div className="text-slate-405 mt-1">Agent Representative: <strong className="text-slate-650">{bookingClient.assignedAgentName}</strong></div>
               </div>
 
+              {/* Appointment Type Select Box */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Development / Project *</label>
-                <input
-                  type="text"
-                  required
-                  id="booking-input-project"
-                  value={bookingFormData.project}
-                  onChange={(e) => setBookingFormData({ ...bookingFormData, project: e.target.value })}
-                  placeholder="e.g. Solinea Resort Towers"
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Specific Property / Unit *</label>
-                <input
-                  type="text"
-                  required
-                  id="booking-input-property"
-                  value={bookingFormData.property}
-                  onChange={(e) => setBookingFormData({ ...bookingFormData, property: e.target.value })}
-                  placeholder="e.g. Tower 2 Unit 15C"
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Reservation Date *</label>
-                  <input
-                    type="date"
-                    required
-                    id="booking-input-resdate"
-                    value={bookingFormData.reservationDate}
-                    onChange={(e) => setBookingFormData({ ...bookingFormData, reservationDate: e.target.value })}
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500 text-slate-650"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Reservation Amount (PHP) *</label>
-                  <input
-                    type="number"
-                    required
-                    id="booking-input-resamount"
-                    value={bookingFormData.reservationAmount}
-                    onChange={(e) => setBookingFormData({ ...bookingFormData, reservationAmount: e.target.value })}
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-205 focus:outline-none focus:border-teal-500 font-mono"
-                    placeholder="e.g. 25000"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Booking Stage Status</label>
+                <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Appointment Type *</label>
                 <select
-                  value={bookingFormData.status}
-                  id="booking-input-status"
-                  onChange={(e) => setBookingFormData({ ...bookingFormData, status: e.target.value as BookingStatus })}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-teal-500"
+                  value={bookingFormData.appointmentType}
+                  id="booking-input-type"
+                  onChange={(e) => setBookingFormData({ ...bookingFormData, appointmentType: e.target.value as any })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-teal-500"
                 >
-                  <option value="New">New</option>
-                  <option value="Reserved">Reserved</option>
-                  <option value="Processing">Processing</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Cancelled">Cancelled</option>
+                  <option value="site visit">site visit</option>
+                  <option value="reservation">reservation</option>
+                  <option value="down payment">down payment</option>
+                  <option value="payment">payment</option>
                 </select>
               </div>
 
+              {/* Location Input (Only shown if Site Visit) */}
+              {bookingFormData.appointmentType === "site visit" && (
+                <div className="animate-fade-in text-slate-550">
+                  <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Site Visit Location *</label>
+                  <input
+                    type="text"
+                    required
+                    id="booking-input-location"
+                    value={bookingFormData.location}
+                    onChange={(e) => setBookingFormData({ ...bookingFormData, location: e.target.value })}
+                    placeholder="e.g. RealtySync Cebú Showroom / Avida Towers Site"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+              )}
+
+              {/* Date Picker and Time Picker */}
+              <div className="grid grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Scheduled Date *</label>
+                  <input
+                    type="date"
+                    required
+                    id="booking-input-date"
+                    value={bookingFormData.appointmentDate}
+                    onChange={(e) => setBookingFormData({ ...bookingFormData, appointmentDate: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500 text-slate-650 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Scheduled Time *</label>
+                  <input
+                    type="time"
+                    required
+                    id="booking-input-time"
+                    value={bookingFormData.appointmentTime}
+                    onChange={(e) => setBookingFormData({ ...bookingFormData, appointmentTime: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500 text-slate-650 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Remarks Notes */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Reservation Remarks / Notes</label>
+                <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Remarks / Notes</label>
                 <textarea
                   id="booking-input-notes"
                   value={bookingFormData.notes}
                   onChange={(e) => setBookingFormData({ ...bookingFormData, notes: e.target.value })}
-                  placeholder="Enter details like down payment modes, next terms, etc."
+                  placeholder="Enter initial schedules notes, requirements to bring, etc."
                   rows={2}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-202 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-202 focus:outline-none focus:border-teal-500"
                 ></textarea>
               </div>
 
@@ -512,23 +565,23 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                 <button
                   type="button"
                   onClick={() => setBookingClient(null)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-650 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg"
+                  className="px-4 py-2 text-sm font-semibold text-slate-650 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg cursor-pointer"
                 >
-                  Back
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={bookingSaving}
                   id="btn-booking-save-submit"
-                  className="px-4 py-2 text-sm font-bold text-white bg-teal-700 hover:bg-teal-800 rounded-lg shadow inline-flex items-center gap-1.5"
+                  className="px-4 py-2 text-sm font-bold text-white bg-teal-700 hover:bg-teal-800 disabled:bg-teal-400 rounded-lg shadow inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   {bookingSaving ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Filing Reservation...
+                      Scheduling...
                     </>
                   ) : (
-                    "Confirm Booking"
+                    "Schedule Appointment"
                   )}
                 </button>
               </div>
@@ -643,6 +696,201 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
           </div>
         </div>
       )}
+
+      {/* SaaS OVERLAP INTEGRITY BREAKDOWN & LEGEND MODAL */}
+      {selectedOverlapClient && (() => {
+        const matchEntry = allDualEntries.find(
+          d => d.clientIdA === selectedOverlapClient.id || d.clientIdB === selectedOverlapClient.id
+        );
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="overlap-integrity-modal">
+            <div className="bg-white rounded-xl border border-slate-100 shadow-2xl max-w-xl w-full overflow-hidden">
+              
+              {/* Header */}
+              <div className="bg-teal-50 border-b border-teal-100 p-5 flex items-start gap-4">
+                <div className="p-2.5 bg-teal-100 text-teal-800 rounded-full shrink-0">
+                  <ClipboardList className="w-6 h-6 text-teal-700" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                    SaaS Overlap Integrity Details
+                  </h3>
+                  <p className="text-xs text-slate-550 mt-1">
+                    System screening record for duplicates, registered agents, and overlap statistics.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setSelectedOverlapClient(null)} 
+                  className="text-slate-400 hover:text-slate-650 p-1 rounded-full cursor-pointer transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content body */}
+              <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+                
+                {/* Active Client Details */}
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-teal-700 tracking-wider">Screened Client Information</span>
+                  <div className="grid grid-cols-2 gap-4 text-xs mt-1">
+                    <div>
+                      <span className="text-slate-500 block">Full Name:</span>
+                      <span className="font-bold text-slate-800 text-sm">
+                        {selectedOverlapClient.firstName} {selectedOverlapClient.middleName ? `${selectedOverlapClient.middleName} ` : ""}{selectedOverlapClient.lastName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Client ID:</span>
+                      <span className="font-mono font-semibold bg-slate-200/60 px-1 py-0.5 rounded text-slate-800">
+                        {selectedOverlapClient.id}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Mobile Contact:</span>
+                      <span className="font-mono text-slate-800">
+                        {selectedOverlapClient.mobileNumber}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Assigned Agent:</span>
+                      <span className="font-bold text-slate-800">
+                        {selectedOverlapClient.assignedAgentName}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-slate-500 block">Address Profile:</span>
+                      <span className="text-slate-700 font-medium">
+                        {selectedOverlapClient.address}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Lead Source:</span>
+                      <span className="bg-teal-55/60 text-teal-800 font-semibold px-2 py-0.5 rounded-full inline-block mt-0.5">
+                        {selectedOverlapClient.sourceOfLead}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Entry Date:</span>
+                      <span className="font-mono text-slate-850">
+                        {new Date(selectedOverlapClient.dateRegistered).toLocaleDateString(undefined, {
+                          year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Overlap Matching Records details */}
+                {selectedOverlapClient.duplicateStatus !== "None" ? (
+                  <div className="bg-amber-50 border border-amber-100 p-4 rounded-lg space-y-3">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-800 text-xs uppercase tracking-wider">
+                      <AlertTriangle className="w-4 h-4 text-amber-70 animate-pulse" />
+                      Detected Overlapping Records & Agent Info
+                    </div>
+                    
+                    {matchEntry ? (
+                      <div className="text-xs space-y-2.5 text-slate-700 font-medium">
+                        <div className="p-3 bg-white rounded-lg border border-amber-200/40 space-y-2">
+                          <p className="font-semibold text-slate-800">Overlap Candidate Profile Details:</p>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                            <div>
+                              <span>• Client Name: </span>
+                              <strong className="text-slate-850">{matchEntry.clientName}</strong>
+                            </div>
+                            <div>
+                              <span>• Similarity Score: </span>
+                              <strong className="text-red-700">{matchEntry.similarityScore}% Match</strong>
+                            </div>
+                            <div>
+                              <span>• First Agent (Agent A): </span>
+                              <strong className="text-slate-800">{matchEntry.agentNameA}</strong>
+                            </div>
+                            <div>
+                              <span>• Registered Date: </span>
+                              <span className="font-mono text-slate-555">{new Date(matchEntry.dateA).toLocaleDateString()}</span>
+                            </div>
+                            <div>
+                              <span>• Conflict Agent (Agent B): </span>
+                              <strong className="text-slate-800">{matchEntry.agentNameB}</strong>
+                            </div>
+                            <div>
+                              <span>• Registered Date: </span>
+                              <span className="font-mono text-slate-555">{new Date(matchEntry.dateB).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-amber-800 bg-amber-100/30 p-2 rounded leading-relaxed">
+                          <strong>Conflict Resolution Policy:</strong> This overlap case is logged under Conflict ID: <strong className="font-mono bg-white px-1 py-0.5 rounded shadow-sm">{matchEntry.id}</strong>. Current resolution status is <span className="underline font-bold text-amber-900">{matchEntry.status}</span>. Any override requires Senior Brokerage audit review.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-600 space-y-1.5 leading-relaxed">
+                        <p>No active unsubmitted Conflict Ticket is currently open. This record was force-overridden during registration by the registering agent.</p>
+                        <p>• Overridden Agent: <strong className="text-slate-800">{selectedOverlapClient.assignedAgentName}</strong></p>
+                        <p>• Overlap Probability: <strong className="text-red-600">{selectedOverlapClient.duplicateStatus === "Strong" ? "High matching (>85%)" : "Moderate matching (50%-85%)"}</strong></p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-100 p-4 rounded-lg text-green-800 text-xs leading-relaxed font-semibold">
+                    ⭐ Perfect Integrity: This client profile is classified as clear, with zero matching scores across active agent databases. No overlaps detected.
+                  </div>
+                )}
+
+                {/* Overlap Statuses Legend */}
+                <div className="border border-slate-100 rounded-lg overflow-hidden">
+                  <div className="bg-slate-50 px-3.5 py-2 border-b border-slate-100 font-bold text-slate-700 text-xs">
+                    RealtySync Overlap Status Legend
+                  </div>
+                  <div className="p-3.5 space-y-3 text-xs leading-relaxed text-slate-650">
+                    <div className="flex items-start gap-2">
+                      <span className="bg-red-50 text-red-700 font-bold px-1.5 py-0.5 rounded border border-red-100 text-[10px] uppercase font-mono mt-0.5 shrink-0">
+                        Strong
+                      </span>
+                      <div>
+                        <strong>Strong Duplicate (Confidence ≥ 85%):</strong> Matches phone contact, or scores highly spelling-wise indicating matching profile tracks. Highest dual submission risk.
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <span className="bg-amber-50 text-amber-700 font-bold px-1.5 py-0.5 rounded border border-amber-100 text-[10px] uppercase font-mono mt-0.5 shrink-0">
+                        Possible
+                      </span>
+                      <div>
+                        <strong>Possible Duplicate (Confidence 50% - 84%):</strong> Partial matches with some spell variations or identical active phone with potential nicknames.
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <span className="bg-green-50 text-green-700 font-bold px-1.5 py-0.5 rounded border border-green-100 text-[10px] uppercase font-mono mt-0.5 shrink-0">
+                        Clean
+                      </span>
+                      <div>
+                        <strong>Clean Record (Confidence &lt; 50%):</strong> Completely free and unique profiles. Auto-routed to standard pipelines.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Footer Actions */}
+              <div className="bg-slate-50 border-t border-slate-100 px-5 py-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOverlapClient(null)}
+                  className="px-5 py-2 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg shadow cursor-pointer transition-all"
+                >
+                  Dismiss Details
+                </button>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

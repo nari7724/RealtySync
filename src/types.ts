@@ -30,22 +30,27 @@ export interface Agent {
   createdAt: string;
 }
 
-export type BookingStatus = "New" | "Reserved" | "Processing" | "Approved" | "Cancelled";
+export type AppointmentType = "site visit" | "reservation" | "down payment" | "payment";
+export type AppointmentStatus = "New" | "Approved" | "Cancelled" | "Scheduled" | "Completed" | "Reserved" | "Processing";
 
-export interface Booking {
+export interface Appointment {
   id: string;
   clientId: string;
   clientName: string;
   agentId: string;
   agentName: string;
-  project: string;
-  property: string;
-  reservationDate: string;
-  reservationAmount: number;
-  status: BookingStatus;
+  appointmentType: AppointmentType;
+  appointmentDate: string; // YYYY-MM-DD
+  appointmentTime: string; // HH:MM
+  dateTime: string; // YYYY-MM-DDTHH:MM
+  location?: string; // only for site visit
+  status: AppointmentStatus;
   notes?: string;
   createdAt: string;
 }
+
+export type BookingStatus = AppointmentStatus;
+export type Booking = Appointment;
 
 export interface Client {
   id: string;

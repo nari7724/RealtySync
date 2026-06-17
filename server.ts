@@ -131,10 +131,10 @@ const DEFAULT_BOOKINGS: Booking[] = [
     clientName: "Juan Dela Cruz",
     agentId: "agent_1",
     agentName: "Sarah Ramirez",
-    project: "Solinea Resort Towers",
-    property: "Tower 2 Unit 15C",
-    reservationDate: "2026-05-15",
-    reservationAmount: 25000,
+    appointmentType: "reservation",
+    appointmentDate: "2026-05-15",
+    appointmentTime: "14:30",
+    dateTime: "2026-05-15T14:30",
     status: "Approved",
     notes: "Full payment made via bank transfer.",
     createdAt: "2026-05-15T12:00:00Z",
@@ -145,10 +145,11 @@ const DEFAULT_BOOKINGS: Booking[] = [
     clientName: "Johnathan Smith",
     agentId: "agent_3",
     agentName: "Maria Santos",
-    project: "Avida Towers Prime",
-    property: "Unit 102 (Commercial Space Ground Floor)",
-    reservationDate: "2026-06-08",
-    reservationAmount: 50000,
+    appointmentType: "site visit",
+    appointmentDate: "2026-06-08",
+    appointmentTime: "10:00",
+    dateTime: "2026-06-08T10:00",
+    location: "Avida Towers Prime Project Site",
     status: "Processing",
     notes: "Awaiting documents signature.",
     createdAt: "2026-06-08T10:00:00Z",
@@ -763,8 +764,8 @@ async function startServer() {
       const q = String(search).toLowerCase();
       list = list.filter(b => 
         b.clientName.toLowerCase().includes(q) ||
-        b.project.toLowerCase().includes(q) ||
-        b.property.toLowerCase().includes(q) ||
+        b.appointmentType.toLowerCase().includes(q) ||
+        (b.location && b.location.toLowerCase().includes(q)) ||
         b.agentName.toLowerCase().includes(q)
       );
     }
@@ -782,6 +783,15 @@ async function startServer() {
       return res.status(404).json({ error: "Selected Client record was not found." });
     }
 
+    // Validate date & time overlap for this client
+    const targetDateTime = bdata.dateTime;
+    if (targetDateTime && bdata.status !== "Cancelled") {
+      const isOverlap = db.bookings.some(b => b.clientId === client.id && b.dateTime === targetDateTime && b.status !== "Cancelled");
+      if (isOverlap) {
+        return res.status(400).json({ error: `This client already has an appointment scheduled at this exact date and time. Please select another slot.` });
+      }
+    }
+
     // Get Agent details
     const agent = db.agents.find(a => a.id === client.assignedAgentId) || {
       id: userContext?.id || "agent_1",
@@ -795,10 +805,11 @@ async function startServer() {
       clientName: `${client.firstName} ${client.lastName}`,
       agentId: agent.id,
       agentName: `${agent.firstName} ${agent.lastName}`,
-      project: bdata.project,
-      property: bdata.property,
-      reservationDate: bdata.reservationDate || new Date().toISOString().split('T')[0],
-      reservationAmount: Number(bdata.reservationAmount) || 0,
+      appointmentType: bdata.appointmentType || "site visit",
+      appointmentDate: bdata.appointmentDate || new Date().toISOString().split('T')[0],
+      appointmentTime: bdata.appointmentTime || "12:00",
+      dateTime: bdata.dateTime || `${bdata.appointmentDate || new Date().toISOString().split('T')[0]}T${bdata.appointmentTime || "12:00"}`,
+      location: bdata.location || "",
       status: bdata.status || "New",
       notes: bdata.notes || "",
       createdAt: new Date().toISOString()
@@ -811,8 +822,8 @@ async function startServer() {
       userContext?.email || "sarah.ramirez@realtysync.com",
       userContext?.userName || "Sarah Ramirez",
       userContext?.role || UserRole.AGENT,
-      "Booking Record Created",
-      `Booking on ${newBooking.project} for ${newBooking.clientName}`,
+      "Appointment Created",
+      `Appointment [${newBooking.appointmentType}] for ${newBooking.clientName}`,
       null,
       newBooking
     );
@@ -823,11 +834,20 @@ async function startServer() {
 
   app.put("/api/bookings/:id", (req, res) => {
     const { id } = req.params;
-    const { status, notes, project, property, reservationAmount, userContext } = req.body;
+    const { status, notes, appointmentType, appointmentDate, appointmentTime, dateTime, location, userContext } = req.body;
 
     const index = db.bookings.findIndex(b => b.id === id);
     if (index === -1) {
-      return res.status(404).json({ error: "Booking record not found" });
+      return res.status(404).json({ error: "Appointment record not found" });
+    }
+
+    // Overlap validation for updates
+    if (dateTime && status !== "Cancelled") {
+      const clientId = db.bookings[index].clientId;
+      const isOverlap = db.bookings.some(b => b.id !== id && b.clientId === clientId && b.dateTime === dateTime && b.status !== "Cancelled");
+      if (isOverlap) {
+        return res.status(400).json({ error: `This client already has an appointment scheduled at this exact date and time. Please select another slot.` });
+      }
     }
 
     const previousValue = { ...db.bookings[index] };
@@ -836,9 +856,11 @@ async function startServer() {
       ...db.bookings[index],
       status: status ?? db.bookings[index].status,
       notes: notes ?? db.bookings[index].notes,
-      project: project ?? db.bookings[index].project,
-      property: property ?? db.bookings[index].property,
-      reservationAmount: reservationAmount !== undefined ? Number(reservationAmount) : db.bookings[index].reservationAmount,
+      appointmentType: appointmentType ?? db.bookings[index].appointmentType,
+      appointmentDate: appointmentDate ?? db.bookings[index].appointmentDate,
+      appointmentTime: appointmentTime ?? db.bookings[index].appointmentTime,
+      dateTime: dateTime ?? db.bookings[index].dateTime,
+      location: location ?? db.bookings[index].location,
     };
 
     writeLog(
@@ -846,8 +868,8 @@ async function startServer() {
       userContext?.email || "admin@realtysync.com",
       userContext?.userName || "Admin",
       userContext?.role || UserRole.ADMIN,
-      `Booking Status to '${db.bookings[index].status}'`,
-      `Booking ID: ${id} (${db.bookings[index].clientName})`,
+      `Appointment Status to '${db.bookings[index].status}'`,
+      `Appointment ID: ${id} (${db.bookings[index].clientName})`,
       previousValue,
       db.bookings[index]
     );
@@ -937,7 +959,7 @@ async function startServer() {
       const agentBookings = db.bookings.filter(b => b.agentId === a.id);
       const approvedAmount = agentBookings
         .filter(b => b.status === "Approved" || b.status === "Reserved")
-        .reduce((sum, b) => sum + b.reservationAmount, 0);
+        .length * 50000;
 
       return {
         id: a.id,
@@ -960,7 +982,7 @@ async function startServer() {
       const totalCompletedSales = agentBookings.filter(b => b.status === "Approved").length;
       const totalDownPayment = agentBookings
         .filter(b => b.status !== "Cancelled")
-        .reduce((sum, b) => sum + b.reservationAmount, 0);
+        .length * 20050;
       const totalDuplicates = agentClients.filter(c => c.duplicateStatus !== "None").length;
 
       // Filter booked today

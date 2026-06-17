@@ -55,7 +55,7 @@ export function Sidebar({
     { id: "dashboard", label: "Agent Console", icon: LayoutDashboard },
     { id: "clients", label: "My Clients", icon: UserCheck },
     { id: "register", label: "Register Client", icon: PlusCircle },
-    { id: "bookings", label: "My Bookings", icon: TrendingUp },
+    { id: "bookings", label: "My Appointment", icon: TrendingUp },
   ];
 
   const activeMenu = isAdmin ? adminMenu : agentMenu;
