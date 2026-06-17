@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+@utility animate-subtle-entrance {
+  animation: subtleEntrance 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes subtleEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -30,8 +30,8 @@ export interface Agent {
   createdAt: string;
 }
 
-export type AppointmentType = "site visit" | "reservation" | "down payment" | "payment";
-export type AppointmentStatus = "New" | "Approved" | "Cancelled" | "Scheduled" | "Completed" | "Reserved" | "Processing";
+export type AppointmentType = "Site Visit" | "Reservation" | "Submit Requirements" | "Payment" | "Inquiry" | "Meeting" | "Release of Title";
+export type AppointmentStatus = "Open" | "Done" | "Cancelled" | "New" | "Approved" | "Scheduled" | "Completed" | "Reserved" | "Processing";
 
 export interface Appointment {
   id: string;

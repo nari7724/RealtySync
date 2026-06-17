@@ -237,7 +237,6 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
                 required
               />
             </div>
-            <p className="text-xs text-slate-400 mt-1">Accepts raw formats. Checked instantly against existing databases.</p>
           </div>
 
           <div>
@@ -269,7 +268,6 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
               required
             />
           </div>
-          <p className="text-xs text-slate-400 mt-1">Fuzzy Cosine string similarity compares matches after normalizing punctuation.</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

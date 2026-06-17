@@ -21,7 +21,8 @@ import {
   Check, 
   ClipboardList,
   Flame,
-  Globe
+  Globe,
+  ShieldAlert
 } from "lucide-react";
 import { Client, Agent, Booking, BookingStatus, UserRole } from "../types.ts";
 
@@ -49,15 +50,16 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [selectedOverlapClient, setSelectedOverlapClient] = useState<Client | null>(null);
   const [allDualEntries, setAllDualEntries] = useState<any[]>([]);
+  const [realtyProjects, setRealtyProjects] = useState<string[]>([]);
 
   // New Appointment Form States
   const [bookingFormData, setBookingFormData] = useState({
-    appointmentType: "site visit" as any,
+    appointmentType: "Site Visit" as any,
     appointmentDate: new Date().toISOString().split('T')[0],
     appointmentTime: "10:00",
     location: "",
     notes: "",
-    status: "New" as any,
+    status: "Open" as any,
   });
   const [bookingSaving, setBookingSaving] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
@@ -124,20 +126,33 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
     }
   };
 
+  const fetchRealtyProjects = async () => {
+    try {
+      const res = await fetch("/api/realty-projects");
+      if (res.ok) {
+        const data = await res.json();
+        setRealtyProjects(data);
+      }
+    } catch (e) {
+      console.error("Error fetching projects:", e);
+    }
+  };
+
   useEffect(() => {
     fetchClients();
     fetchDualEntries();
+    fetchRealtyProjects();
   }, [page, search, selectedAgent, selectedDupStatus, triggerRefreshStamp]);
 
   const handleBookingOpen = (client: Client) => {
     setBookingClient(client);
     setBookingError(null);
     setBookingFormData({
-      appointmentType: "site visit",
+      appointmentType: "Site Visit",
       appointmentDate: new Date().toISOString().split('T')[0],
       appointmentTime: "10:00",
       location: "",
-      status: "New",
+      status: "Open",
       notes: "",
     });
   };
@@ -156,7 +171,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
       setBookingError("Please specify a scheduled time (e.g., 10:00).");
       return;
     }
-    if (bookingFormData.appointmentType === "site visit" && !bookingFormData.location.trim()) {
+    if (String(bookingFormData.appointmentType).toLowerCase() === "site visit" && !bookingFormData.location.trim()) {
       setBookingError("Please input a designated location for the site visit.");
       return;
     }
@@ -175,7 +190,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
           appointmentTime: bookingFormData.appointmentTime,
           dateTime: combinedDateTime,
           location: bookingFormData.location,
-          status: bookingFormData.status || "New",
+          status: bookingFormData.status || "Open",
           notes: bookingFormData.notes,
           userContext: {
             id: currentUser.id,
@@ -317,8 +332,8 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
             }}
             className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-teal-500 min-w-[150px] cursor-pointer"
           >
-            <option value="">All Duplicate States</option>
-            <option value="None">No Duplicates</option>
+            <option value="">All</option>
+            <option value="None">Clean Record</option>
             <option value="Possible">Possible Duplicates</option>
             <option value="Strong">Strong Duplicates</option>
           </select>
@@ -341,6 +356,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100">
+                  <th className="px-6 py-4">Client ID</th>
                   <th className="px-6 py-4">Client Information</th>
                   <th className="px-6 py-4">SaaS Overlap Integrity</th>
                   <th className="px-6 py-4 flex-1">Registration Timeline</th>
@@ -350,6 +366,15 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
               <tbody className="divide-y divide-slate-100/70 text-sm">
                 {clients.map((client) => (
                   <tr key={client.id} className="hover:bg-slate-50/40 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => handleEditOpen(client)}
+                        className="font-mono font-bold text-xs text-teal-700 hover:underline hover:text-teal-800 cursor-pointer"
+                        title="Click to edit client"
+                      >
+                        {client.id}
+                      </button>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="space-y-1">
                         <div className="font-bold text-slate-900 leading-snug">{client.firstName} {client.middleName ? `${client.middleName} ` : ""}{client.lastName}</div>
@@ -360,9 +385,6 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                             {client.facebookProfileLink}
                           </div>
                         )}
-                        <div className="text-[10px] text-teal-650 bg-teal-50 px-1.5 py-0.5 rounded inline-block mt-1 font-medium select-none ml-1">
-                          Source: {client.sourceOfLead}
-                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-xs">
@@ -406,8 +428,10 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                       <div className="flex justify-center items-center gap-2">
                         <button
                           onClick={() => handleBookingOpen(client)}
+                          disabled={client.duplicateStatus === "Strong" || client.duplicateStatus === "Possible"}
+                          title={client.duplicateStatus === "Strong" || client.duplicateStatus === "Possible" ? "Please resolve overlap integrity before scheduling an appointment" : "Set an appointment"}
                           id={`client-book-btn-${client.id}`}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
                         >
                           <BookOpen className="w-3.5 h-3.5" />
                           Set an Appointment
@@ -454,6 +478,37 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
         </div>
       )}
 
+      {/* Overlap Status Legend */}
+      <div className="mt-5 p-5 bg-slate-55 border border-slate-200 rounded-xl bg-slate-50" id="overlap-status-legend">
+        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+          <ShieldAlert className="w-4 h-4 text-slate-500" />
+          Overlap Status Legend
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+          <div className="flex gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full mt-1 shrink-0 bg-emerald-500" />
+            <div>
+              <span className="font-bold text-slate-800 block">Clean Record</span>
+              <span className="text-slate-500 mt-0.5 block">No duplicate profiles found. All appointment scheduling features are fully unlocked.</span>
+            </div>
+          </div>
+          <div className="flex gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full mt-1 shrink-0 bg-amber-500" />
+            <div>
+              <span className="font-bold text-slate-800 block">Possible Duplicate</span>
+              <span className="text-slate-500 mt-0.5 block">Potential similarity match context identified. Appointments are locked until cleared.</span>
+            </div>
+          </div>
+          <div className="flex gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full mt-1 shrink-0 bg-red-550 bg-red-500" />
+            <div>
+              <span className="font-bold text-slate-800 block">Strong Duplicate</span>
+              <span className="text-slate-500 mt-0.5 block">High similarity match detected in databases. Requires administrative merge resolution to resume.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* MODAL WINDOWS A: SET AN APPOINTMENT FOR SELECTED CLIENT */}
       {bookingClient && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="booking-modal-overlay">
@@ -478,9 +533,10 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
               )}
 
               {/* Target Customer Details */}
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1.5 text-xs">
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1.5 text-xs text-slate-600">
                 <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Client Information</div>
                 <div className="font-bold text-slate-900 text-sm">{bookingClient.firstName} {bookingClient.middleName ? `${bookingClient.middleName} ` : ""}{bookingClient.lastName}</div>
+                <div>Client ID: <span className="font-mono font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">{bookingClient.id}</span></div>
                 <div className="text-slate-600 font-medium">Contact: <span className="font-mono font-bold text-slate-800">{bookingClient.mobileNumber}</span></div>
                 <div className="text-slate-500 truncate" title={bookingClient.address}>Address: <span className="font-semibold text-slate-700">{bookingClient.address}</span></div>
                 {bookingClient.facebookProfileLink && (
@@ -495,29 +551,58 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                 <select
                   value={bookingFormData.appointmentType}
                   id="booking-input-type"
-                  onChange={(e) => setBookingFormData({ ...bookingFormData, appointmentType: e.target.value as any })}
+                  onChange={(e) => setBookingFormData({ ...bookingFormData, appointmentType: e.target.value as any, location: "" })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-teal-500"
                 >
-                  <option value="site visit">site visit</option>
-                  <option value="reservation">reservation</option>
-                  <option value="down payment">down payment</option>
-                  <option value="payment">payment</option>
+                  <option value="Site Visit">Site Visit</option>
+                  <option value="Reservation">Reservation</option>
+                  <option value="Submit Requirements">Submit Requirements</option>
+                  <option value="Payment">Payment</option>
+                  <option value="Inquiry">Inquiry</option>
+                  <option value="Meeting">Meeting</option>
+                  <option value="Release of Title">Release of Title</option>
                 </select>
               </div>
 
               {/* Location Input (Only shown if Site Visit) */}
-              {bookingFormData.appointmentType === "site visit" && (
-                <div className="animate-fade-in text-slate-550">
-                  <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Site Visit Location *</label>
-                  <input
-                    type="text"
-                    required
-                    id="booking-input-location"
-                    value={bookingFormData.location}
-                    onChange={(e) => setBookingFormData({ ...bookingFormData, location: e.target.value })}
-                    placeholder="e.g. RealtySync Cebú Showroom / Avida Towers Site"
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500"
-                  />
+              {String(bookingFormData.appointmentType).toLowerCase() === "site visit" && (
+                <div className="animate-fade-in text-slate-550 space-y-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Site Visit Location *</label>
+                    <select
+                      required
+                      id="booking-input-location"
+                      value={bookingFormData.location}
+                      onChange={(e) => setBookingFormData({ ...bookingFormData, location: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-teal-500 cursor-pointer"
+                    >
+                      <option value="">Select a Realty Project...</option>
+                      {realtyProjects.map((proj) => (
+                        <option key={proj} value={proj}>{proj}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {bookingFormData.location && (
+                    <div className="animate-fade-in">
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Project Complete Location Address</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={({
+                          "Avida Towers Riala": "Apas, Cebu IT Park, Cebu City, Cebu",
+                          "Solinea Resort Condominium": "Cardiff St, Cebu IT Park, Cebu City, Cebu",
+                          "The Alcoves": "Luz, Cebu City, Cebu",
+                          "Park Point Residences": "Cardinal Rosales Ave, Cebu City, Cebu",
+                          "Amara Subdivision": "Catarman, Liloan, Cebu",
+                          "Amaia Steps Mandaue": "Plaridel St, Mandaue City, Cebu",
+                          "Cebu IT Park Residences": "Jose Maria del Mar St, Cebu City, Cebu",
+                          "Marco Polo Residences": "Nivel Hills, Lahug, Cebu City, Cebu"
+                        }[bookingFormData.location]) || ""}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 font-bold text-slate-650 focus:outline-none cursor-not-allowed"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -804,20 +889,28 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                               <strong className="text-red-700">{matchEntry.similarityScore}% Match</strong>
                             </div>
                             <div>
-                              <span>• First Agent (Agent A): </span>
-                              <strong className="text-slate-800">{matchEntry.agentNameA}</strong>
+                              <span>• Client A ID: </span>
+                              <span className="font-mono text-slate-800 bg-slate-100 px-1 rounded">{matchEntry.clientIdA}</span>
                             </div>
                             <div>
-                              <span>• Registered Date: </span>
-                              <span className="font-mono text-slate-555">{new Date(matchEntry.dateA).toLocaleDateString()}</span>
+                              <span>• Client B ID: </span>
+                              <span className="font-mono text-slate-800 bg-slate-100 px-1 rounded">{matchEntry.clientIdB}</span>
+                            </div>
+                            <div>
+                              <span>• First Agent (Agent A): </span>
+                              <strong className="text-slate-805 text-slate-800">{matchEntry.agentNameA} <span className="font-mono text-[10px] text-slate-500">({matchEntry.agentIdA})</span></strong>
+                            </div>
+                            <div>
+                              <span>• Registered Time: </span>
+                              <span className="font-mono text-slate-555 text-slate-500">{new Date(matchEntry.dateA).toLocaleString()}</span>
                             </div>
                             <div>
                               <span>• Conflict Agent (Agent B): </span>
-                              <strong className="text-slate-800">{matchEntry.agentNameB}</strong>
+                              <strong className="text-slate-805 text-slate-800">{matchEntry.agentNameB} <span className="font-mono text-[10px] text-slate-500">({matchEntry.agentIdB})</span></strong>
                             </div>
                             <div>
-                              <span>• Registered Date: </span>
-                              <span className="font-mono text-slate-555">{new Date(matchEntry.dateB).toLocaleDateString()}</span>
+                              <span>• Registered Time: </span>
+                              <span className="font-mono text-slate-555 text-slate-500">{new Date(matchEntry.dateB).toLocaleString()}</span>
                             </div>
                           </div>
                         </div>

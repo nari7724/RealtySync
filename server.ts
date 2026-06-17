@@ -12,10 +12,46 @@ import { calculateCombinedDuplicateScore, normalizeAddress } from "./src/utils/m
 
 const DB_FILE = path.join(process.cwd(), "realtysync_db.json");
 
+// Define realty projects
+const DEFAULT_REALTY_PROJECTS = [
+  "Avida Towers Riala",
+  "Solinea Resort Condominium",
+  "The Alcoves",
+  "Park Point Residences",
+  "Amara Subdivision",
+  "Amaia Steps Mandaue",
+  "Cebu IT Park Residences",
+  "Marco Polo Residences"
+];
+
+// Generate unique 3 letters 4 numbers alphanumeric ID suffix (total 7 characters)
+function generateUniqueId(prefix: string): string {
+  let attempts = 0;
+  while (attempts < 100) {
+    const letters = Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join("");
+    const numbers = Array.from({ length: 4 }, () => Math.floor(Math.random() * 10)).join("");
+    const candidate = `${prefix}-${letters}${numbers}`;
+    
+    const state = (typeof db !== "undefined") ? db : null;
+    const existsClients = state && state.clients ? state.clients.some(c => c.id === candidate) : false;
+    const existsAgents = state && state.agents ? state.agents.some(a => a.id === candidate) : false;
+    const existsBookings = state && state.bookings ? state.bookings.some(b => b.id === candidate) : false;
+    const existsDual = state && state.dualEntries ? state.dualEntries.some(d => d.id === candidate) : false;
+    
+    if (!existsClients && !existsAgents && !existsBookings && !existsDual) {
+      return candidate;
+    }
+    attempts++;
+  }
+  const letters = Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join("");
+  const numbers = Array.from({ length: 4 }, () => Math.floor(Math.random() * 10)).join("");
+  return `${prefix}-${letters}${numbers}`;
+}
+
 // Define seed data structure
 const DEFAULT_AGENTS: Agent[] = [
   {
-    id: "agent_1",
+    id: "AG-SRA8234",
     firstName: "Sarah",
     middleName: "A.",
     lastName: "Ramirez",
@@ -26,7 +62,7 @@ const DEFAULT_AGENTS: Agent[] = [
     createdAt: "2026-01-10T08:30:00Z",
   },
   {
-    id: "agent_2",
+    id: "AG-JBL1234",
     firstName: "James",
     middleName: "B.",
     lastName: "Lim",
@@ -37,7 +73,7 @@ const DEFAULT_AGENTS: Agent[] = [
     createdAt: "2026-02-15T10:15:00Z",
   },
   {
-    id: "agent_3",
+    id: "AG-MSA1923",
     firstName: "Maria",
     middleName: "C.",
     lastName: "Santos",
@@ -48,7 +84,7 @@ const DEFAULT_AGENTS: Agent[] = [
     createdAt: "2026-03-20T14:45:00Z",
   },
   {
-    id: "agent_4",
+    id: "AG-MRA3456",
     firstName: "Mark",
     middleName: "D.",
     lastName: "Ramos",
@@ -62,7 +98,7 @@ const DEFAULT_AGENTS: Agent[] = [
 
 const DEFAULT_CLIENTS: Client[] = [
   {
-    id: "client_1",
+    id: "CL-JDC1234",
     firstName: "Juan",
     middleName: "Dela",
     lastName: "Cruz",
@@ -71,14 +107,14 @@ const DEFAULT_CLIENTS: Client[] = [
     facebookProfileLink: "facebook.com/juan.delacruz",
     sourceOfLead: "Facebook Ad",
     notes: "Particularly interested in 2-bedroom units.",
-    assignedAgentId: "agent_1",
+    assignedAgentId: "AG-SRA8234",
     assignedAgentName: "Sarah Ramirez",
     dateRegistered: "2026-05-12T11:00:00Z",
     duplicateStatus: "None"
   },
   // Exact Mobile and Name conflict logged by James Lim later:
   {
-    id: "client_2",
+    id: "CL-JDC1235",
     firstName: "Juan",
     middleName: "",
     lastName: "Delacruz",
@@ -87,13 +123,13 @@ const DEFAULT_CLIENTS: Client[] = [
     facebookProfileLink: "facebook.com/juan.delacruz",
     sourceOfLead: "Direct Walk-In",
     notes: "Wants to reserve unit this week.",
-    assignedAgentId: "agent_2",
+    assignedAgentId: "AG-JBL1234",
     assignedAgentName: "James Lim",
     dateRegistered: "2026-06-01T15:20:00Z",
     duplicateStatus: "Strong"
   },
   {
-    id: "client_3",
+    id: "CL-JPS1337",
     firstName: "Johnathan",
     middleName: "Paul",
     lastName: "Smith",
@@ -102,13 +138,13 @@ const DEFAULT_CLIENTS: Client[] = [
     facebookProfileLink: "facebook.com/jpsmith",
     sourceOfLead: "Broker Referral",
     notes: "High budget commercial investor.",
-    assignedAgentId: "agent_3",
+    assignedAgentId: "AG-MSA1923",
     assignedAgentName: "Maria Santos",
     dateRegistered: "2026-06-05T09:12:00Z",
     duplicateStatus: "None"
   },
   {
-    id: "client_4",
+    id: "CL-JPS1338",
     firstName: "Johnny",
     middleName: "",
     lastName: "Smith",
@@ -117,7 +153,7 @@ const DEFAULT_CLIENTS: Client[] = [
     facebookProfileLink: "facebook.com/jpsmith", // Same FB!
     sourceOfLead: "Flyer",
     notes: "Looking for commercial lease.",
-    assignedAgentId: "agent_1",
+    assignedAgentId: "AG-SRA8234",
     assignedAgentName: "Sarah Ramirez",
     dateRegistered: "2026-06-14T01:30:00Z", // Created fresh today!
     duplicateStatus: "Strong"
@@ -126,12 +162,12 @@ const DEFAULT_CLIENTS: Client[] = [
 
 const DEFAULT_BOOKINGS: Booking[] = [
   {
-    id: "booking_1",
-    clientId: "client_1",
+    id: "APT-RES5555",
+    clientId: "CL-JDC1234",
     clientName: "Juan Dela Cruz",
-    agentId: "agent_1",
+    agentId: "AG-SRA8234",
     agentName: "Sarah Ramirez",
-    appointmentType: "reservation",
+    appointmentType: "Reservation",
     appointmentDate: "2026-05-15",
     appointmentTime: "14:30",
     dateTime: "2026-05-15T14:30",
@@ -140,12 +176,12 @@ const DEFAULT_BOOKINGS: Booking[] = [
     createdAt: "2026-05-15T12:00:00Z",
   },
   {
-    id: "booking_2",
-    clientId: "client_3",
+    id: "APT-SIV6666",
+    clientId: "CL-JPS1337",
     clientName: "Johnathan Smith",
-    agentId: "agent_3",
+    agentId: "AG-MSA1923",
     agentName: "Maria Santos",
-    appointmentType: "site visit",
+    appointmentType: "Site Visit",
     appointmentDate: "2026-06-08",
     appointmentTime: "10:00",
     dateTime: "2026-06-08T10:00",
@@ -158,13 +194,13 @@ const DEFAULT_BOOKINGS: Booking[] = [
 
 const DEFAULT_DUAL_ENTRIES: DualEntry[] = [
   {
-    id: "dual_1",
+    id: "CON-JDC1111",
     clientName: "Juan Dela Cruz",
-    clientIdA: "client_1",
-    clientIdB: "client_2",
-    agentIdA: "agent_1",
+    clientIdA: "CL-JDC1234",
+    clientIdB: "CL-JDC1235",
+    agentIdA: "AG-SRA8234",
     agentNameA: "Sarah Ramirez",
-    agentIdB: "agent_2",
+    agentIdB: "AG-JBL1234",
     agentNameB: "James Lim",
     dateA: "2026-05-12T11:00:00Z",
     dateB: "2026-06-01T15:20:00Z",
@@ -181,13 +217,13 @@ const DEFAULT_DUAL_ENTRIES: DualEntry[] = [
     },
   },
   {
-    id: "dual_2",
+    id: "CON-JPS2222",
     clientName: "Johnathan Smith",
-    clientIdA: "client_3",
-    clientIdB: "client_4",
-    agentIdA: "agent_3",
+    clientIdA: "CL-JPS1337",
+    clientIdB: "CL-JPS1338",
+    agentIdA: "AG-MSA1923",
     agentNameA: "Maria Santos",
-    agentIdB: "agent_1",
+    agentIdB: "AG-SRA8234",
     agentNameB: "Sarah Ramirez",
     dateA: "2026-06-05T09:12:00Z",
     dateB: "2026-06-14T01:30:00Z", // Fresh today
@@ -259,6 +295,109 @@ const DEFAULT_AUDIT_LOGS: AuditLog[] = [
   }
 ];
 
+function migrateState(state: any): any {
+  if (!state) return state;
+  const agentMap: Record<string, string> = {
+    "agent_1": "AG-SRA8234",
+    "agent_2": "AG-JBL1234",
+    "agent_3": "AG-MSA1923",
+    "agent_4": "AG-MRA3456"
+  };
+  const clientMap: Record<string, string> = {
+    "client_1": "CL-JDC1234",
+    "client_2": "CL-JDC1235",
+    "client_3": "CL-JPS1337",
+    "client_4": "CL-JPS1338"
+  };
+  const bookingMap: Record<string, string> = {
+    "booking_1": "APT-RES5555",
+    "booking_2": "APT-SIV6666"
+  };
+  const dualMap: Record<string, string> = {
+    "dual_1": "CON-JDC1111",
+    "dual_2": "CON-JPS2222"
+  };
+
+  const mapAgent = (id: string) => agentMap[id] || id;
+  const mapClient = (id: string) => clientMap[id] || id;
+  const mapBooking = (id: string) => bookingMap[id] || id;
+  const mapDual = (id: string) => dualMap[id] || id;
+
+  if (Array.isArray(state.agents)) {
+    state.agents = state.agents.map((a: any) => ({
+      ...a,
+      id: mapAgent(a.id)
+    }));
+  }
+  if (Array.isArray(state.clients)) {
+    state.clients = state.clients.map((c: any) => ({
+      ...c,
+      id: mapClient(c.id),
+      assignedAgentId: mapAgent(c.assignedAgentId)
+    }));
+  }
+  if (Array.isArray(state.bookings)) {
+    state.bookings = state.bookings.map((b: any) => ({
+      ...b,
+      id: mapBooking(b.id),
+      clientId: mapClient(b.clientId),
+      agentId: mapAgent(b.agentId)
+    }));
+  }
+  if (Array.isArray(state.dualEntries)) {
+    state.dualEntries = state.dualEntries.map((d: any) => {
+      const updated = {
+        ...d,
+        id: mapDual(d.id),
+        clientIdA: mapClient(d.clientIdA),
+        clientIdB: mapClient(d.clientIdB),
+        agentIdA: mapAgent(d.agentIdA),
+        agentIdB: mapAgent(d.agentIdB)
+      };
+      if (updated.details) {
+        if (updated.details.clientA) {
+          updated.details.clientA = {
+            ...updated.details.clientA,
+            id: mapClient(updated.details.clientA.id),
+            assignedAgentId: mapAgent(updated.details.clientA.assignedAgentId)
+          };
+        }
+        if (updated.details.clientB) {
+          updated.details.clientB = {
+            ...updated.details.clientB,
+            id: mapClient(updated.details.clientB.id),
+            assignedAgentId: mapAgent(updated.details.clientB.assignedAgentId)
+          };
+        }
+      }
+      return updated;
+    });
+  }
+  if (Array.isArray(state.notifications)) {
+    state.notifications = state.notifications.map((n: any) => {
+      if (typeof n.message === "string") {
+        let msg = n.message;
+        Object.keys(agentMap).forEach(k => {
+          msg = msg.replace(new RegExp(k, "g"), agentMap[k]);
+        });
+        Object.keys(clientMap).forEach(k => {
+          msg = msg.replace(new RegExp(k, "g"), clientMap[k]);
+        });
+        return { ...n, message: msg };
+      }
+      return n;
+    });
+  }
+  if (Array.isArray(state.auditLogs)) {
+    state.auditLogs = state.auditLogs.map((l: any) => ({
+      ...l,
+      id: l.id ? (l.id.startsWith("log_") ? "LOG-" + l.id.slice(4).toUpperCase() : l.id) : l.id,
+      userId: mapAgent(l.userId)
+    }));
+  }
+  return state;
+}
+
 // Load database state from disk or initialize with seed data
 function loadDB(): {
   agents: Agent[];
@@ -267,19 +406,24 @@ function loadDB(): {
   dualEntries: DualEntry[];
   notifications: Notification[];
   auditLogs: AuditLog[];
+  realtyProjects: string[];
 } {
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, "utf-8");
       const parsed = JSON.parse(data);
-      return {
+      const state = {
         agents: Array.isArray(parsed.agents) ? parsed.agents : DEFAULT_AGENTS,
         clients: Array.isArray(parsed.clients) ? parsed.clients : DEFAULT_CLIENTS,
         bookings: Array.isArray(parsed.bookings) ? parsed.bookings : DEFAULT_BOOKINGS,
         dualEntries: Array.isArray(parsed.dualEntries) ? parsed.dualEntries : DEFAULT_DUAL_ENTRIES,
         notifications: Array.isArray(parsed.notifications) ? parsed.notifications : DEFAULT_NOTIFICATIONS,
         auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : DEFAULT_AUDIT_LOGS,
+        realtyProjects: Array.isArray(parsed.realtyProjects) ? parsed.realtyProjects : DEFAULT_REALTY_PROJECTS,
       };
+      const migrated = migrateState(state);
+      saveDB(migrated);
+      return migrated;
     }
   } catch (err) {
     console.error("Error loading mock file database, recreating:", err);
@@ -293,6 +437,7 @@ function loadDB(): {
     dualEntries: DEFAULT_DUAL_ENTRIES,
     notifications: DEFAULT_NOTIFICATIONS,
     auditLogs: DEFAULT_AUDIT_LOGS,
+    realtyProjects: DEFAULT_REALTY_PROJECTS,
   };
   saveDB(state);
   return state;
@@ -304,6 +449,99 @@ function saveDB(state: any) {
   } catch (err) {
     console.error("Error writing mock file database:", err);
   }
+}
+
+// Re-evaluates overlaps/conflicts among all clients
+function reevaluateAllClientConflicts() {
+  // Reset all client duplicate statuses first
+  for (const c of db.clients) {
+    c.duplicateStatus = "None";
+  }
+
+  // Set to track clients with active conflict
+  const activeConflictClients = new Set<string>();
+
+  // Compare every distinct pair of clients
+  for (let i = 0; i < db.clients.length; i++) {
+    for (let j = i + 1; j < db.clients.length; j++) {
+      const c1 = db.clients[i];
+      const c2 = db.clients[j];
+      const check = calculateCombinedDuplicateScore(c1, c2);
+      
+      if (check.score >= 70) {
+        activeConflictClients.add(c1.id);
+        activeConflictClients.add(c2.id);
+
+        const overlapStatus = check.score >= 90 ? "Strong" : "Possible";
+        if (c1.duplicateStatus === "None" || (overlapStatus === "Strong" && c1.duplicateStatus === "Possible")) {
+          c1.duplicateStatus = overlapStatus;
+        }
+        if (c2.duplicateStatus === "None" || (overlapStatus === "Strong" && c2.duplicateStatus === "Possible")) {
+          c2.duplicateStatus = overlapStatus;
+        }
+
+        // Add or update DualEntry (conflict queue item)
+        const dualIndex = db.dualEntries.findIndex(d => 
+          (d.clientIdA === c1.id && d.clientIdB === c2.id) ||
+          (d.clientIdA === c2.id && d.clientIdB === c1.id)
+        );
+
+        if (dualIndex === -1) {
+          const dualEntry: DualEntry = {
+            id: generateUniqueId("CON"),
+            clientName: `${c2.firstName} ${c2.lastName}`,
+            clientIdA: c1.id,
+            clientIdB: c2.id,
+            agentIdA: c1.assignedAgentId,
+            agentNameA: c1.assignedAgentName,
+            agentIdB: c2.assignedAgentId,
+            agentNameB: c2.assignedAgentName,
+            dateA: c1.dateRegistered,
+            dateB: c2.dateRegistered,
+            similarityScore: check.score,
+            status: "Pending Review",
+            details: {
+              clientA: c1,
+              clientB: c2,
+              differences: {
+                name: `${c1.firstName} ${c1.lastName}`.toLowerCase() !== `${c2.firstName} ${c2.lastName}`.toLowerCase(),
+                phone: c1.mobileNumber !== c2.mobileNumber,
+                address: normalizeAddress(c1.address) !== normalizeAddress(c2.address)
+              }
+            }
+          };
+          db.dualEntries.unshift(dualEntry);
+        } else {
+          db.dualEntries[dualIndex].similarityScore = check.score;
+          db.dualEntries[dualIndex].details = {
+            clientA: db.dualEntries[dualIndex].clientIdA === c1.id ? c1 : c2,
+            clientB: db.dualEntries[dualIndex].clientIdB === c2.id ? c2 : c1,
+            differences: {
+              name: `${c1.firstName} ${c1.lastName}`.toLowerCase() !== `${c2.firstName} ${c2.lastName}`.toLowerCase(),
+              phone: c1.mobileNumber !== c2.mobileNumber,
+              address: normalizeAddress(c1.address) !== normalizeAddress(c2.address)
+            }
+          };
+        }
+      } else {
+        // If there was an existing DualEntry but score is now < 70, remove it
+        const dualIndex = db.dualEntries.findIndex(d => 
+          (d.clientIdA === c1.id && d.clientIdB === c2.id) ||
+          (d.clientIdA === c2.id && d.clientIdB === c1.id)
+        );
+        if (dualIndex !== -1) {
+          db.dualEntries.splice(dualIndex, 1);
+        }
+      }
+    }
+  }
+
+  // Any remaining dualEntries where details/references don't exist anymore should be pruned
+  db.dualEntries = db.dualEntries.filter(d => {
+    const hasA = db.clients.some(c => c.id === d.clientIdA);
+    const hasB = db.clients.some(c => c.id === d.clientIdB);
+    return hasA && hasB;
+  });
 }
 
 // Memory database instance
@@ -463,6 +701,9 @@ async function startServer() {
     const { search, agentId, duplicateStatus, page = "1", limit = "10" } = req.query;
     let list = [...db.clients];
 
+    // Sort with latest entry first
+    list.sort((a, b) => new Date(b.dateRegistered).getTime() - new Date(a.dateRegistered).getTime());
+
     // Filter by Search (Global Client Name, Mobile, Facebook, or Agent Name)
     if (search) {
       const q = String(search).toLowerCase();
@@ -511,7 +752,7 @@ async function startServer() {
 
     // Build standard client entity
     const newClient: Client = {
-      id: "client_" + Date.now(),
+      id: generateUniqueId("CL"),
       firstName: clientData.firstName,
       middleName: clientData.middleName || "",
       lastName: clientData.lastName,
@@ -547,7 +788,7 @@ async function startServer() {
       const score = activeConflict.score;
 
       const dualEntry: DualEntry = {
-        id: "dual_" + Date.now(),
+        id: generateUniqueId("CON"),
         clientName: `${newClient.firstName} ${newClient.lastName}`,
         clientIdA: existing.id,
         clientIdB: newClient.id,
@@ -630,6 +871,9 @@ async function startServer() {
       notes: clientData.notes ?? db.clients[index].notes,
     };
 
+    // Re-evaluate overlap/conflicts across all clients when details are updated
+    reevaluateAllClientConflicts();
+
     writeLog(
       editorId,
       editorEmail,
@@ -676,7 +920,7 @@ async function startServer() {
     }
 
     const newAgent: Agent = {
-      id: "agent_" + Date.now(),
+      id: generateUniqueId("AG"),
       firstName,
       middleName,
       lastName,
@@ -752,6 +996,13 @@ async function startServer() {
     const { agentId, status, search } = req.query;
     let list = [...db.bookings];
 
+    // Sort with earliest appointment first
+    list.sort((a, b) => {
+      const timeA = new Date(a.dateTime || `${a.appointmentDate}T${a.appointmentTime}`).getTime() || 0;
+      const timeB = new Date(b.dateTime || `${b.appointmentDate}T${b.appointmentTime}`).getTime() || 0;
+      return timeA - timeB;
+    });
+
     if (agentId) {
       list = list.filter(b => b.agentId === agentId);
     }
@@ -800,7 +1051,7 @@ async function startServer() {
     };
 
     const newBooking: Booking = {
-      id: "booking_" + Date.now(),
+      id: generateUniqueId("APT"),
       clientId: client.id,
       clientName: `${client.firstName} ${client.lastName}`,
       agentId: agent.id,
@@ -808,9 +1059,9 @@ async function startServer() {
       appointmentType: bdata.appointmentType || "site visit",
       appointmentDate: bdata.appointmentDate || new Date().toISOString().split('T')[0],
       appointmentTime: bdata.appointmentTime || "12:00",
-      dateTime: bdata.dateTime || `${bdata.appointmentDate || new Date().toISOString().split('T')[0]}T${bdata.appointmentTime || "12:00"}`,
+      dateTime: bdata.dateTime || `${bdata.appointmentDate || new Date().toISOString().split('T')[0]}T${bdata.appointmentTime || "12:05"}`,
       location: bdata.location || "",
-      status: bdata.status || "New",
+      status: bdata.status || "Open",
       notes: bdata.notes || "",
       createdAt: new Date().toISOString()
     };
@@ -884,6 +1135,10 @@ async function startServer() {
     res.json(db.dualEntries);
   });
 
+  app.get("/api/realty-projects", (req, res) => {
+    res.json(db.realtyProjects || DEFAULT_REALTY_PROJECTS);
+  });
+
   app.post("/api/dual-entries/:id/resolve", (req, res) => {
     const { id } = req.params;
     const { action, resolutionStatus, winningClientIdx, userContext } = req.body; // action: 'Mark Duplicate' | 'Mark False Positive' | 'Resolve'
@@ -953,23 +1208,27 @@ async function startServer() {
   app.get("/api/reports/summary", (req, res) => {
     const { agentId } = req.query;
 
-    // Agent Leaderboard (Retained and global for both roles)
+    // Agent Leaderboard sorted by bookings count (excluding PHP sales amount)
     const leaderboard = db.agents.map(a => {
       const agentClients = db.clients.filter(c => c.assignedAgentId === a.id);
       const agentBookings = db.bookings.filter(b => b.agentId === a.id);
-      const approvedAmount = agentBookings
-        .filter(b => b.status === "Approved" || b.status === "Reserved")
-        .length * 50000;
 
       return {
         id: a.id,
         name: `${a.firstName} ${a.lastName}`,
         clientsCount: agentClients.length,
         bookingsCount: agentBookings.length,
-        salesVolume: approvedAmount,
         status: a.status
       };
-    }).sort((a,b) => b.salesVolume - a.salesVolume);
+    }).sort((a,b) => b.bookingsCount - a.bookingsCount);
+
+    // Manila Today Date YYYY-MM-DD
+    const localDate = new Date();
+    const manilaOffset = 8 * 60 * 60 * 1000;
+    const manilaTime = new Date(localDate.getTime() + (localDate.getTimezoneOffset() * 60000) + manilaOffset);
+    const todayStr = manilaTime.toISOString().split("T")[0]; // YYYY-MM-DD
+
+    const typeKeys = ["Site Visit", "Reservation", "Submit Requirements", "Payment", "Inquiry", "Meeting", "Release of Title"];
 
     if (agentId) {
       const targetAgentId = String(agentId);
@@ -977,18 +1236,42 @@ async function startServer() {
       const agentBookings = db.bookings.filter(b => b.agentId === targetAgentId);
 
       const totalClients = agentClients.length;
-      const totalOpenBookings = agentBookings.filter(b => ["New", "Reserved", "Processing"].includes(b.status)).length;
+      const totalOpenBookings = agentBookings.filter(b => ["New", "Reserved", "Processing", "Proposed", "Open"].includes(b.status)).length;
       const totalBookings = agentBookings.length; // total reservation count
-      const totalCompletedSales = agentBookings.filter(b => b.status === "Approved").length;
+      const totalCompletedSales = agentBookings.filter(b => b.status === "Approved" || b.status === "Done").length;
       const totalDownPayment = agentBookings
         .filter(b => b.status !== "Cancelled")
         .length * 20050;
       const totalDuplicates = agentClients.filter(c => c.duplicateStatus !== "None").length;
 
       // Filter booked today
-      const todayStr = new Date().toISOString().split("T")[0];
       const registeredToday = agentClients.filter(c => c.dateRegistered.startsWith(todayStr)).length;
-      const bookingsToday = agentBookings.filter(b => b.createdAt.startsWith(todayStr)).length;
+      const bookingsToday = agentBookings.filter(b => b.appointmentDate === todayStr).length;
+
+      // Appointment counts today specifically for this agent
+      const appointmentTypeCountsToday: Record<string, number> = {};
+      typeKeys.forEach(t => {
+        appointmentTypeCountsToday[t] = agentBookings.filter(b => 
+          b.appointmentDate === todayStr && 
+          String(b.appointmentType).toLowerCase() === t.toLowerCase()
+        ).length;
+      });
+
+      // Overall type counts for this agent
+      const appointmentTypeCountsOverall = typeKeys.map(t => ({
+        type: t,
+        count: agentBookings.filter(b => String(b.appointmentType).toLowerCase() === t.toLowerCase()).length
+      }));
+
+      // Monthly bookings trend for this agent
+      const monthlyBookings = [
+        { month: "Jan", count: 0 },
+        { month: "Feb", count: 1 },
+        { month: "Mar", count: 1 },
+        { month: "Apr", count: 0 },
+        { month: "May", count: agentBookings.filter(b => b.appointmentDate.includes("-05-")).length },
+        { month: "Jun", count: agentBookings.filter(b => b.appointmentDate.includes("-06-")).length }
+      ];
 
       res.json({
         totalClients,
@@ -1000,8 +1283,10 @@ async function startServer() {
         registeredToday,
         bookingsToday,
         leaderboard,
-        monthlyRegistrations: [],
-        duplicateTrends: []
+        appointmentTypeCountsToday,
+        appointmentTypeCountsOverall,
+        monthlyBookings,
+        monthlyRegistrations: []
       });
     } else {
       // Gather global statistics
@@ -1011,9 +1296,23 @@ async function startServer() {
       const totalDuplicates = db.clients.filter(c => c.duplicateStatus !== "None").length;
 
       // Filter booked today
-      const todayStr = new Date().toISOString().split("T")[0];
       const registeredToday = db.clients.filter(c => c.dateRegistered.startsWith(todayStr)).length;
-      const bookingsToday = db.bookings.filter(b => b.createdAt.startsWith(todayStr)).length;
+      const bookingsToday = db.bookings.filter(b => b.appointmentDate === todayStr).length;
+
+      // Appointment counts today specifically (Global)
+      const appointmentTypeCountsToday: Record<string, number> = {};
+      typeKeys.forEach(t => {
+        appointmentTypeCountsToday[t] = db.bookings.filter(b => 
+          b.appointmentDate === todayStr && 
+          String(b.appointmentType).toLowerCase() === t.toLowerCase()
+        ).length;
+      });
+
+      // Overall type counts (Global)
+      const appointmentTypeCountsOverall = typeKeys.map(t => ({
+        type: t,
+        count: db.bookings.filter(b => String(b.appointmentType).toLowerCase() === t.toLowerCase()).length
+      }));
 
       // Monthly Analytics trend (June & May)
       const monthlyRegistrations = [
@@ -1023,6 +1322,16 @@ async function startServer() {
         { month: "Apr", count: 3 },
         { month: "May", count: 8 },
         { month: "Jun", count: db.clients.filter(c => c.dateRegistered.includes("-06-")).length || 6 }
+      ];
+
+      // Monthly bookings trend (Global)
+      const monthlyBookings = [
+        { month: "Jan", count: 2 },
+        { month: "Feb", count: 3 },
+        { month: "Mar", count: 4 },
+        { month: "Apr", count: 5 },
+        { month: "May", count: db.bookings.filter(b => b.appointmentDate.includes("-05-")).length + 4 },
+        { month: "Jun", count: db.bookings.filter(b => b.appointmentDate.includes("-06-")).length + 6 }
       ];
 
       const duplicateTrends = [
@@ -1040,9 +1349,12 @@ async function startServer() {
         bookingsToday,
         leaderboard,
         monthlyRegistrations,
+        monthlyBookings,
+        appointmentTypeCountsToday,
+        appointmentTypeCountsOverall,
         duplicateTrends
       });
-    }
+    };
   });
 
   // Audit Logs view
