@@ -265,11 +265,11 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
       {/* Title block */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <UserCheck className="w-6 h-6 text-teal-700 font-bold" />
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
+            <UserCheck className="w-6 h-6 text-teal-700 dark:text-teal-400 font-bold" />
             {currentUser.role === UserRole.ADMIN ? "Broker Client Registries" : "My Assigned Client Base"}
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-505 dark:text-slate-400 mt-1">
             {currentUser.role === UserRole.ADMIN 
               ? "Comprehensive list of all registered clients, owning agents, and duplicate flags." 
               : "Track and organize your direct leads, view registration states, and submit reservation reservations."}
@@ -287,23 +287,23 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
       </div>
 
       {/* Filter panel */}
-      <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm flex flex-col lg:flex-row gap-4 items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 shadow-sm flex flex-col lg:flex-row gap-4 items-center justify-between">
         <div className="relative flex-1 w-full">
-          <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-450" />
           <input
             type="text"
             id="client-search-bar"
-            placeholder="Search clients by Client Name, mobile, fb URL, or owning agent..."
+            placeholder="Search by Client ID, Client Name, mobile, fb URL, or owning agent..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-slate-205 focus:outline-none focus:border-teal-500 placeholder-slate-400"
+            className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-slate-205 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500 placeholder-slate-400"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto shrink-0 border-t lg:border-none pt-3 lg:pt-0">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto shrink-0 border-t lg:border-none pt-3 lg:pt-0 dark:border-slate-800">
           <Filter className="w-4 h-4 text-slate-450" />
           
           {currentUser.role === UserRole.ADMIN && (
@@ -314,7 +314,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                 setSelectedAgent(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-teal-500 min-w-[150px] cursor-pointer"
+              className="px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500 min-w-[150px] cursor-pointer"
             >
               <option value="">All Agents</option>
               {agentsList.map(a => (
@@ -330,7 +330,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
               setSelectedDupStatus(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-teal-500 min-w-[150px] cursor-pointer"
+            className="px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-755 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500 min-w-[150px] cursor-pointer"
           >
             <option value="">All</option>
             <option value="None">Clean Record</option>
@@ -342,20 +342,20 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
 
       {/* Main clients logs table */}
       {loading ? (
-        <div className="bg-white rounded-xl border border-slate-100 p-24 text-center shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-24 text-center shadow-sm">
           <Loader2 className="w-8 h-8 text-teal-700 animate-spin mx-auto mb-2" />
-          <p className="text-sm text-slate-400 font-medium">Scanning client registers...</p>
+          <p className="text-sm text-slate-400 dark:text-slate-400 font-medium">Scanning client registers...</p>
         </div>
       ) : clients.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-100 p-16 text-center shadow-sm text-slate-450">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-16 text-center shadow-sm text-slate-450 dark:text-slate-400">
           <p className="text-sm text-slate-500">No client listings found matching filters.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden" id="clients-main-table-container">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden" id="clients-main-table-container">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100">
+                <tr className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-slate-804">
                   <th className="px-6 py-4">Client ID</th>
                   <th className="px-6 py-4">Client Information</th>
                   <th className="px-6 py-4">SaaS Overlap Integrity</th>
@@ -363,9 +363,9 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                   <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100/70 text-sm">
+              <tbody className="divide-y divide-slate-100/70 dark:divide-slate-800/80 text-sm">
                 {clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-slate-50/40 transition-colors">
+                  <tr key={client.id} className="hover:bg-slate-50/40 dark:hover:bg-slate-950/40 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => handleEditOpen(client)}
@@ -512,13 +512,13 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
       {/* MODAL WINDOWS A: SET AN APPOINTMENT FOR SELECTED CLIENT */}
       {bookingClient && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="booking-modal-overlay">
-          <div className="bg-white rounded-xl border border-slate-100 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-teal-700" />
-                <h3 className="font-bold text-slate-900 text-md">Set an Appointment</h3>
+                <Calendar className="w-4 h-4 text-teal-700 dark:text-teal-400" />
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-md">Set an Appointment</h3>
               </div>
-              <button onClick={() => setBookingClient(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setBookingClient(null)} className="text-slate-400 hover:text-slate-650 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -526,33 +526,33 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
             <form onSubmit={handleBookingSubmit} className="p-6 space-y-4">
               {/* Dynamic Error Indicator */}
               {bookingError && (
-                <div className="bg-red-50 text-red-700 p-3 rounded-lg text-xs font-semibold flex items-start gap-2 border border-red-100 animate-pulse">
+                <div className="bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 p-3 rounded-lg text-xs font-semibold flex items-start gap-2 border border-red-100 dark:border-red-900 animate-pulse">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-650" />
                   <span>{bookingError}</span>
                 </div>
               )}
 
               {/* Target Customer Details */}
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1.5 text-xs text-slate-600">
-                <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Client Information</div>
-                <div className="font-bold text-slate-900 text-sm">{bookingClient.firstName} {bookingClient.middleName ? `${bookingClient.middleName} ` : ""}{bookingClient.lastName}</div>
-                <div>Client ID: <span className="font-mono font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">{bookingClient.id}</span></div>
-                <div className="text-slate-600 font-medium">Contact: <span className="font-mono font-bold text-slate-800">{bookingClient.mobileNumber}</span></div>
-                <div className="text-slate-500 truncate" title={bookingClient.address}>Address: <span className="font-semibold text-slate-700">{bookingClient.address}</span></div>
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
+                <div className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Client Information</div>
+                <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">{bookingClient.firstName} {bookingClient.middleName ? `${bookingClient.middleName} ` : ""}{bookingClient.lastName}</div>
+                <div>Client ID: <span className="font-mono font-bold text-teal-700 bg-teal-50 dark:bg-teal-950 px-1.5 py-0.5 rounded border dark:border-teal-900">{bookingClient.id}</span></div>
+                <div>Contact: <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{bookingClient.mobileNumber}</span></div>
+                <div className="text-slate-500 dark:text-slate-400 truncate" title={bookingClient.address}>Address: <span className="font-semibold text-slate-700 dark:text-slate-300">{bookingClient.address}</span></div>
                 {bookingClient.facebookProfileLink && (
-                  <div className="text-slate-500 truncate">Social Media Link: <span className="font-mono text-teal-650 font-bold">{bookingClient.facebookProfileLink}</span></div>
+                  <div className="text-slate-500 dark:text-slate-450 truncate">Social Media Link: <span className="font-mono text-teal-650 dark:text-teal-450 font-bold">{bookingClient.facebookProfileLink}</span></div>
                 )}
-                <div className="text-slate-405 mt-1">Agent Representative: <strong className="text-slate-650">{bookingClient.assignedAgentName}</strong></div>
+                <div className="text-slate-405 mt-1 dark:text-slate-400">Agent Representative: <strong className="text-slate-650 dark:text-slate-300">{bookingClient.assignedAgentName}</strong></div>
               </div>
 
               {/* Appointment Type Select Box */}
               <div>
-                <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Appointment Type *</label>
+                <label className="block text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider mb-1.5">Appointment Type *</label>
                 <select
                   value={bookingFormData.appointmentType}
                   id="booking-input-type"
                   onChange={(e) => setBookingFormData({ ...bookingFormData, appointmentType: e.target.value as any, location: "" })}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
                 >
                   <option value="Site Visit">Site Visit</option>
                   <option value="Reservation">Reservation</option>
@@ -566,15 +566,15 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
 
               {/* Location Input (Only shown if Site Visit) */}
               {String(bookingFormData.appointmentType).toLowerCase() === "site visit" && (
-                <div className="animate-fade-in text-slate-550 space-y-2">
+                <div className="animate-fade-in text-slate-550 dark:text-slate-450 space-y-2">
                   <div>
-                    <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Site Visit Location *</label>
+                    <label className="block text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider mb-1.5">Site Visit Location *</label>
                     <select
                       required
                       id="booking-input-location"
                       value={bookingFormData.location}
                       onChange={(e) => setBookingFormData({ ...bookingFormData, location: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-teal-500 cursor-pointer"
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-205 focus:outline-none focus:border-teal-500 cursor-pointer"
                     >
                       <option value="">Select a Realty Project...</option>
                       {realtyProjects.map((proj) => (
@@ -585,7 +585,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
 
                   {bookingFormData.location && (
                     <div className="animate-fade-in">
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Project Complete Location Address</label>
+                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Project Complete Location Address</label>
                       <input
                         type="text"
                         readOnly
@@ -599,7 +599,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                           "Cebu IT Park Residences": "Jose Maria del Mar St, Cebu City, Cebu",
                           "Marco Polo Residences": "Nivel Hills, Lahug, Cebu City, Cebu"
                         }[bookingFormData.location]) || ""}
-                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 font-bold text-slate-650 focus:outline-none cursor-not-allowed"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-slate-650 dark:text-slate-350 focus:outline-none cursor-not-allowed"
                       />
                     </div>
                   )}
@@ -609,48 +609,48 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
               {/* Date Picker and Time Picker */}
               <div className="grid grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Scheduled Date *</label>
+                  <label className="block text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider mb-1.5">Scheduled Date *</label>
                   <input
                     type="date"
                     required
                     id="booking-input-date"
                     value={bookingFormData.appointmentDate}
                     onChange={(e) => setBookingFormData({ ...bookingFormData, appointmentDate: e.target.value })}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500 text-slate-650 font-mono"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500 font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Scheduled Time *</label>
+                  <label className="block text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider mb-1.5">Scheduled Time *</label>
                   <input
                     type="time"
                     required
                     id="booking-input-time"
                     value={bookingFormData.appointmentTime}
                     onChange={(e) => setBookingFormData({ ...bookingFormData, appointmentTime: e.target.value })}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500 text-slate-650 font-mono"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500 font-mono"
                   />
                 </div>
               </div>
 
               {/* Remarks Notes */}
               <div>
-                <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-1.5">Remarks / Notes</label>
+                <label className="block text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider mb-1.5">Remarks / Notes</label>
                 <textarea
                   id="booking-input-notes"
                   value={bookingFormData.notes}
                   onChange={(e) => setBookingFormData({ ...bookingFormData, notes: e.target.value })}
                   placeholder="Enter initial schedules notes, requirements to bring, etc."
                   rows={2}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-202 focus:outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
                 ></textarea>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setBookingClient(null)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-650 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg cursor-pointer"
+                  className="px-4 py-2 text-sm font-semibold text-slate-650 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -678,10 +678,10 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
       {/* MODAL WINDOWS B: EDIT SELECTED CLIENT METADATA */}
       {editingClient && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="client-edit-modal-overlay">
-          <div className="bg-white rounded-xl border border-slate-100 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50">
-              <h3 className="font-bold text-slate-900 text-md">Edit Client Profile</h3>
-              <button onClick={() => setEditingClient(null)} className="text-slate-400 hover:text-slate-600">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-md">Edit Client Profile</h3>
+              <button onClick={() => setEditingClient(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -689,90 +689,90 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
             <form onSubmit={handleClientSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">First Name *</label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">First Name *</label>
                   <input
                     type="text"
                     required
                     value={clientFormData.firstName}
                     onChange={(e) => setClientFormData({ ...clientFormData, firstName: e.target.value })}
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Middle Name</label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Middle Name</label>
                   <input
                     type="text"
                     value={clientFormData.middleName}
                     onChange={(e) => setClientFormData({ ...clientFormData, middleName: e.target.value })}
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Last Name *</label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Last Name *</label>
                   <input
                     type="text"
                     required
                     value={clientFormData.lastName}
                     onChange={(e) => setClientFormData({ ...clientFormData, lastName: e.target.value })}
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Mobile Number *</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Mobile Number *</label>
                 <input
                   type="text"
                   required
                   value={clientFormData.mobileNumber}
                   onChange={(e) => setClientFormData({ ...clientFormData, mobileNumber: e.target.value })}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Address *</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Address *</label>
                 <input
                   type="text"
                   required
                   value={clientFormData.address}
                   onChange={(e) => setClientFormData({ ...clientFormData, address: e.target.value })}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Facebook URL</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Facebook URL</label>
                 <input
                   type="text"
                   value={clientFormData.facebookProfileLink}
                   onChange={(e) => setClientFormData({ ...clientFormData, facebookProfileLink: e.target.value })}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Remarks / Remarks</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Remarks / Remarks</label>
                 <textarea
                   value={clientFormData.notes}
                   onChange={(e) => setClientFormData({ ...clientFormData, notes: e.target.value })}
                   rows={2}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
                 ></textarea>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setEditingClient(null)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-650 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg"
+                  className="px-4 py-2 text-sm font-semibold text-slate-655 dark:text-slate-350 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={clientSaving}
-                  className="px-4 py-2 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg"
+                  className="px-4 py-2 text-sm font-bold text-white bg-teal-700 hover:bg-teal-800 rounded-lg shadow cursor-pointer"
                 >
                   {clientSaving ? "Saving..." : "Save Changes"}
                 </button>
@@ -790,18 +790,18 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="overlap-integrity-modal">
-            <div className="bg-white rounded-xl border border-slate-100 shadow-2xl max-w-xl w-full overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-xl w-full overflow-hidden">
               
               {/* Header */}
-              <div className="bg-teal-50 border-b border-teal-100 p-5 flex items-start gap-4">
-                <div className="p-2.5 bg-teal-100 text-teal-800 rounded-full shrink-0">
-                  <ClipboardList className="w-6 h-6 text-teal-700" />
+              <div className="bg-teal-5 depth-50 dark:bg-slate-950 border-b border-teal-100 dark:border-slate-800 p-5 flex items-start gap-4">
+                <div className="p-2.5 bg-teal-100 dark:bg-teal-950/50 text-teal-800 dark:text-teal-400 rounded-full shrink-0">
+                  <ClipboardList className="w-6 h-6 text-teal-700 dark:text-teal-400" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 leading-snug">
                     SaaS Overlap Integrity Details
                   </h3>
-                  <p className="text-xs text-slate-550 mt-1">
+                  <p className="text-xs text-slate-550 dark:text-slate-400 mt-1">
                     System screening record for duplicates, registered agents, and overlap statistics.
                   </p>
                 </div>
@@ -817,48 +817,48 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
               <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
                 
                 {/* Active Client Details */}
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2">
-                  <span className="text-[10px] uppercase font-bold text-teal-700 tracking-wider">Screened Client Information</span>
+                <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-lg border border-slate-100 dark:border-slate-800 space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-teal-700 dark:text-teal-400 tracking-wider">Screened Client Information</span>
                   <div className="grid grid-cols-2 gap-4 text-xs mt-1">
                     <div>
-                      <span className="text-slate-500 block">Full Name:</span>
-                      <span className="font-bold text-slate-800 text-sm">
+                      <span className="text-slate-500 dark:text-slate-400 block font-medium">Full Name:</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">
                         {selectedOverlapClient.firstName} {selectedOverlapClient.middleName ? `${selectedOverlapClient.middleName} ` : ""}{selectedOverlapClient.lastName}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Client ID:</span>
-                      <span className="font-mono font-semibold bg-slate-200/60 px-1 py-0.5 rounded text-slate-800">
+                      <span className="text-slate-500 dark:text-slate-400 block font-medium">Client ID:</span>
+                      <span className="font-mono font-semibold bg-slate-200/60 dark:bg-slate-800 px-1 py-0.5 rounded text-slate-800 dark:text-slate-200 border dark:border-slate-700">
                         {selectedOverlapClient.id}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Mobile Contact:</span>
-                      <span className="font-mono text-slate-800">
+                      <span className="text-slate-500 dark:text-slate-400 block font-medium">Mobile Contact:</span>
+                      <span className="font-mono text-slate-800 dark:text-slate-200 font-bold">
                         {selectedOverlapClient.mobileNumber}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Assigned Agent:</span>
-                      <span className="font-bold text-slate-800">
+                      <span className="text-slate-500 dark:text-slate-400 block font-medium">Assigned Agent:</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
                         {selectedOverlapClient.assignedAgentName}
                       </span>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-slate-500 block">Address Profile:</span>
-                      <span className="text-slate-700 font-medium">
+                      <span className="text-slate-500 dark:text-slate-400 block font-medium">Address Profile:</span>
+                      <span className="text-slate-705 dark:text-slate-300 font-medium">
                         {selectedOverlapClient.address}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Lead Source:</span>
-                      <span className="bg-teal-55/60 text-teal-800 font-semibold px-2 py-0.5 rounded-full inline-block mt-0.5">
+                      <span className="text-slate-500 dark:text-slate-400 block font-medium">Lead Source:</span>
+                      <span className="bg-teal-55/60 dark:bg-teal-950/40 text-teal-800 dark:text-teal-400 border dark:border-teal-900 font-semibold px-2 py-0.5 rounded-full inline-block mt-0.5 text-[11px]">
                         {selectedOverlapClient.sourceOfLead}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Entry Date:</span>
-                      <span className="font-mono text-slate-850">
+                      <span className="text-slate-500 dark:text-slate-400 block font-medium">Entry Date:</span>
+                      <span className="font-mono text-slate-850 dark:text-slate-300">
                         {new Date(selectedOverlapClient.dateRegistered).toLocaleDateString(undefined, {
                           year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}
@@ -869,65 +869,65 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
 
                 {/* Overlap Matching Records details */}
                 {selectedOverlapClient.duplicateStatus !== "None" ? (
-                  <div className="bg-amber-50 border border-amber-100 p-4 rounded-lg space-y-3">
-                    <div className="flex items-center gap-1.5 font-bold text-amber-800 text-xs uppercase tracking-wider">
-                      <AlertTriangle className="w-4 h-4 text-amber-70 animate-pulse" />
+                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 p-4 rounded-lg space-y-3">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-400 text-xs uppercase tracking-wider">
+                      <AlertTriangle className="w-4 h-4 text-amber-70 dark:text-amber-500 animate-pulse" />
                       Detected Overlapping Records & Agent Info
                     </div>
                     
                     {matchEntry ? (
-                      <div className="text-xs space-y-2.5 text-slate-700 font-medium">
-                        <div className="p-3 bg-white rounded-lg border border-amber-200/40 space-y-2">
-                          <p className="font-semibold text-slate-800">Overlap Candidate Profile Details:</p>
-                          <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                      <div className="text-xs space-y-2.5 text-slate-750 dark:text-slate-300 font-medium">
+                        <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-amber-200/40 dark:border-amber-900/30 space-y-2 animate-fade-in">
+                          <p className="font-semibold text-slate-800 dark:text-slate-200">Overlap Candidate Profile Details:</p>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-400">
                             <div>
                               <span>• Client Name: </span>
-                              <strong className="text-slate-850">{matchEntry.clientName}</strong>
+                              <strong className="text-slate-850 dark:text-slate-200">{matchEntry.clientName}</strong>
                             </div>
                             <div>
                               <span>• Similarity Score: </span>
-                              <strong className="text-red-700">{matchEntry.similarityScore}% Match</strong>
+                              <strong className="text-red-700 dark:text-red-400">{matchEntry.similarityScore}% Match</strong>
                             </div>
                             <div>
                               <span>• Client A ID: </span>
-                              <span className="font-mono text-slate-800 bg-slate-100 px-1 rounded">{matchEntry.clientIdA}</span>
+                              <span className="font-mono text-slate-800 dark:text-slate-205 bg-slate-100 dark:bg-slate-800 px-1 rounded">{matchEntry.clientIdA}</span>
                             </div>
                             <div>
                               <span>• Client B ID: </span>
-                              <span className="font-mono text-slate-800 bg-slate-100 px-1 rounded">{matchEntry.clientIdB}</span>
+                              <span className="font-mono text-slate-800 dark:text-slate-205 bg-slate-100 dark:bg-slate-800 px-1 rounded">{matchEntry.clientIdB}</span>
                             </div>
                             <div>
                               <span>• First Agent (Agent A): </span>
-                              <strong className="text-slate-805 text-slate-800">{matchEntry.agentNameA} <span className="font-mono text-[10px] text-slate-500">({matchEntry.agentIdA})</span></strong>
+                              <strong className="text-slate-800 dark:text-slate-200">{matchEntry.agentNameA} <span className="font-mono text-[10px] text-slate-500 dark:text-slate-450">({matchEntry.agentIdA})</span></strong>
                             </div>
                             <div>
                               <span>• Registered Time: </span>
-                              <span className="font-mono text-slate-555 text-slate-500">{new Date(matchEntry.dateA).toLocaleString()}</span>
+                              <span className="font-mono text-slate-500 dark:text-slate-400">{new Date(matchEntry.dateA).toLocaleString()}</span>
                             </div>
                             <div>
                               <span>• Conflict Agent (Agent B): </span>
-                              <strong className="text-slate-805 text-slate-800">{matchEntry.agentNameB} <span className="font-mono text-[10px] text-slate-500">({matchEntry.agentIdB})</span></strong>
+                              <strong className="text-slate-800 dark:text-slate-200">{matchEntry.agentNameB} <span className="font-mono text-[10px] text-slate-500 dark:text-slate-450">({matchEntry.agentIdB})</span></strong>
                             </div>
                             <div>
                               <span>• Registered Time: </span>
-                              <span className="font-mono text-slate-555 text-slate-500">{new Date(matchEntry.dateB).toLocaleString()}</span>
+                              <span className="font-mono text-slate-500 dark:text-slate-400">{new Date(matchEntry.dateB).toLocaleString()}</span>
                             </div>
                           </div>
                         </div>
-                        <p className="text-[11px] text-amber-800 bg-amber-100/30 p-2 rounded leading-relaxed">
-                          <strong>Conflict Resolution Policy:</strong> This overlap case is logged under Conflict ID: <strong className="font-mono bg-white px-1 py-0.5 rounded shadow-sm">{matchEntry.id}</strong>. Current resolution status is <span className="underline font-bold text-amber-900">{matchEntry.status}</span>. Any override requires Senior Brokerage audit review.
+                        <p className="text-[11px] text-amber-805 dark:text-amber-400 bg-amber-100/30 dark:bg-amber-950/10 p-2 rounded leading-relaxed border dark:border-amber-900/20">
+                          <strong>Conflict Resolution Policy:</strong> This overlap case is logged under Conflict ID: <strong className="font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded shadow-sm border dark:border-slate-800">{matchEntry.id}</strong>. Current resolution status is <span className="underline font-bold text-amber-905 dark:text-amber-300">{matchEntry.status}</span>. Any override requires Senior Brokerage audit review.
                         </p>
                       </div>
                     ) : (
-                      <div className="text-xs text-slate-600 space-y-1.5 leading-relaxed">
+                      <div className="text-xs text-slate-650 dark:text-slate-350 space-y-1.5 leading-relaxed">
                         <p>No active unsubmitted Conflict Ticket is currently open. This record was force-overridden during registration by the registering agent.</p>
-                        <p>• Overridden Agent: <strong className="text-slate-800">{selectedOverlapClient.assignedAgentName}</strong></p>
-                        <p>• Overlap Probability: <strong className="text-red-600">{selectedOverlapClient.duplicateStatus === "Strong" ? "High matching (>85%)" : "Moderate matching (50%-85%)"}</strong></p>
+                        <p>• Overridden Agent: <strong className="text-slate-800 dark:text-slate-200">{selectedOverlapClient.assignedAgentName}</strong></p>
+                        <p>• Overlap Probability: <strong className="text-red-650 dark:text-red-400">{selectedOverlapClient.duplicateStatus === "Strong" ? "High matching (>85%)" : "Moderate matching (50%-85%)"}</strong></p>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="bg-green-50 border border-green-100 p-4 rounded-lg text-green-800 text-xs leading-relaxed font-semibold">
+                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-100 dark:border-green-900/30 p-4 rounded-lg text-green-800 dark:text-green-400 text-xs leading-relaxed font-semibold">
                     ⭐ Perfect Integrity: This client profile is classified as clear, with zero matching scores across active agent databases. No overlaps detected.
                   </div>
                 )}

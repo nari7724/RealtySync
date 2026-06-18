@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { motion } from "motion/react";
 import { 
   Users, 
   UserCheck, 
@@ -51,12 +52,120 @@ import { BookingList } from "./components/BookingList.tsx";
 import { DashboardCharts } from "./components/DashboardCharts.tsx";
 import { RecentActivity } from "./components/RecentActivity.tsx";
 
+function Counter({ value }: { value: number }) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let startTimestamp: number | null = null;
+    const end = value;
+    if (end === 0) {
+      setCount(0);
+      return;
+    }
+    const duration = 800; // milliseconds
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      setCount(Math.floor(progress * end));
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      } else {
+        setCount(end);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }, [value]);
+
+  return <>{count}</>;
+}
+
+const REALTY_PROJECT_ADDRESSES: Record<string, string> = {
+  "Avida Towers Riala": "Apas, Cebu IT Park, Cebu City, Cebu",
+  "Solinea Resort Condominium": "Cardiff St, Cebu IT Park, Cebu City, Cebu",
+  "The Alcoves": "Luz, Cebu City, Cebu",
+  "Park Point Residences": "Cardinal Rosales Ave, Cebu City, Cebu",
+  "Amara Subdivision": "Catarman, Liloan, Cebu",
+  "Amaia Steps Mandaue": "Plaridel St, Mandaue City, Cebu",
+  "Cebu IT Park Residences": "Jose Maria del Mar St, Cebu City, Cebu",
+  "Marco Polo Residences": "Nivel Hills, Lahug, Cebu City, Cebu"
+};
+
+function isBookingDueSoon(apptDate: string, apptTime: string): boolean {
+  try {
+    if (!apptDate || !apptTime) return false;
+    
+    // Get Manila today date (YYYY-MM-DD)
+    const dtf = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" });
+    const manilaToday = dtf.format(new Date());
+    
+    if (apptDate !== manilaToday) {
+      return false;
+    }
+    
+    // Get current Manila time
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Manila",
+      hour: "numeric",
+      minute: "numeric",
+      hour12: false
+    });
+    const parts = formatter.formatToParts(new Date());
+    const hrPart = parts.find(p => p.type === "hour")?.value || "0";
+    const minPart = parts.find(p => p.type === "minute")?.value || "0";
+    
+    const curHrs = parseInt(hrPart, 10);
+    const curMins = parseInt(minPart, 10);
+    
+    // Parse scheduled time
+    const [tHrsStr, tMinsStr] = apptTime.split(":");
+    const tHrs = parseInt(tHrsStr, 10);
+    const tMins = parseInt(apptTime.includes(" ") ? tMinsStr.split(" ")[0] : tMinsStr, 10);
+    
+    // Calc client differences
+    const curTotalMins = curHrs * 60 + curMins;
+    const apptTotalMins = tHrs * 60 + tMins;
+    const diff = apptTotalMins - curTotalMins;
+    
+    return diff >= 0 && diff <= 30;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function formatTimeWithAMPM(timeStr: string | undefined): string {
+  if (!timeStr) return "—";
+  if (timeStr.toLowerCase().endsWith("am") || timeStr.toLowerCase().endsWith("pm")) {
+    return timeStr;
+  }
+  try {
+    const parts = timeStr.split(":");
+    if (parts.length >= 2) {
+      let hours = parseInt(parts[0], 10);
+      const minutesStr = parts[1].split(" ")[0];
+      const minutes = parseInt(minutesStr, 10);
+      if (!isNaN(hours) && !isNaN(minutes)) {
+        const ampm = hours >= 12 ? "PM" : "AM";
+        hours = hours % 12;
+        hours = hours === 0 ? 12 : hours;
+        const displayMinutes = minutes < 10 ? `0${minutes}` : minutes;
+        return `${hours}:${displayMinutes} ${ampm}`;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return timeStr;
+}
+
 export default function App() {
   // Authentication states
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem("realtysync_user");
     return saved ? JSON.parse(saved) : null;
   });
+
+  // Selected earliest booking details modal
+  const [selectedEarliestBooking, setSelectedEarliestBooking] = useState<any | null>(null);
 
   const [authEmail, setAuthEmail] = useState("admin@realtysync.com");
   const [authRole, setAuthRole] = useState<UserRole>(UserRole.ADMIN);
@@ -82,8 +191,43 @@ export default function App() {
   // Admin Auto-refresh rate for leaderboard & stats (in minutes, 0 means Manual/Off)
   const [refreshInterval, setRefreshInterval] = useState<number>(0);
 
+  // Theme state
+  const isDarkMode = false;
+  const setIsDarkMode = () => {};
+
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+    localStorage.setItem("realtysync-theme", "light");
+  }, []);
+
   // Clock state in Manila time (Asia/Manila)
   const [manilaTime, setManilaTime] = useState("");
+
+  // Earliest 3 appointments for the active day
+  const [earliestBookings, setEarliestBookings] = useState<any[]>([]);
+
+  // 7-day completed appointments trend for sparkline (performance metrics)
+  const [completedBookingsTrend, setCompletedBookingsTrend] = useState<any[]>([]);
+
+  // Agent claims conflicts list (real-time)
+  const [agentConflicts, setAgentConflicts] = useState<any[]>([]);
+
+  const fetchAgentConflicts = async () => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch("/api/dual-entries");
+      if (res.ok) {
+        const data = await res.json();
+        const filtered = data.filter((entry: any) => 
+          (entry.agentIdA === currentUser.id || entry.agentIdB === currentUser.id) &&
+          entry.status === "Pending Review"
+        );
+        setAgentConflicts(filtered);
+      }
+    } catch (err) {
+      console.error("Error fetching agent conflicts:", err);
+    }
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -165,28 +309,86 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (currentUser) {
-      fetchAgents();
-      fetchNotifications();
-      fetchStats();
-      fetchRecentActivities();
+  // Fetch agent's top 3 earliest appointments for the active day
+  const fetchEarliestBookings = async () => {
+    try {
+      let url = "/api/bookings";
+      if (currentUser && currentUser.role === UserRole.AGENT) {
+        url += `?agentId=${currentUser.id}`;
+      }
+      const res = await fetch(url);
+      if (res.ok) {
+        const list = await res.json();
+        
+        // Filter to only today's date in Asia/Manila 
+        const optionsStr = { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" } as const;
+        const dtf = new Intl.DateTimeFormat("en-CA", optionsStr);
+        const manilaToday = dtf.format(new Date()); // Outputs YYYY-MM-DD
+        
+        const todayBookings = list.filter((b: any) => 
+          b.appointmentDate === manilaToday && 
+          String(b.status).toLowerCase() === "open"
+        );
+        
+        // Sort by time ascending
+        todayBookings.sort((a: any, b: any) => {
+          const tA = a.appointmentTime || "00:00";
+          const tB = b.appointmentTime || "00:00";
+          return tA.localeCompare(tB);
+        });
+
+        setEarliestBookings(todayBookings.slice(0, 3));
+
+        // Calculate Sparkline completed trends for the last 7 days (including today)
+        const trend = [];
+        for (let i = 6; i >= 0; i--) {
+          const pastDate = new Date();
+          pastDate.setDate(pastDate.getDate() - i);
+          const dateStr = dtf.format(pastDate); // "YYYY-MM-DD" in Manila timezone
+          const label = pastDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Manila" });
+
+          // Count completed appointments for this specific date
+          const count = list.filter((b: any) => 
+            b.appointmentDate === dateStr &&
+            ["done", "completed", "approved"].includes(String(b.status).toLowerCase())
+          ).length;
+
+          trend.push({ dateStr, label, count });
+        }
+        setCompletedBookingsTrend(trend);
+      }
+    } catch (err) {
+      console.error("Error fetching earliest bookings list:", err);
     }
-  }, [currentUser, refreshStamp]);
+  };
 
   useEffect(() => {
-    const isCurrentUserAdmin = currentUser?.role === UserRole.ADMIN;
-    if (!currentUser || !isCurrentUserAdmin || refreshInterval === 0) return;
+    if (!currentUser) return;
 
-    const intervalMs = refreshInterval * 60 * 1000;
-    const timer = setInterval(() => {
+    // Load initial on mount/user role changes
+    fetchAgents();
+    fetchNotifications();
+    fetchStats();
+    fetchRecentActivities();
+    fetchEarliestBookings();
+    if (currentUser.role === UserRole.AGENT) {
+      fetchAgentConflicts();
+    }
+
+    // Enable high-frequency background polling (every 3 seconds) for truly real-time
+    // asynchronous updates without requiring a full manual browser reload.
+    const pollInterval = setInterval(() => {
       fetchStats();
       fetchNotifications();
       fetchRecentActivities();
-    }, intervalMs);
+      fetchEarliestBookings();
+      if (currentUser.role === UserRole.AGENT) {
+        fetchAgentConflicts();
+      }
+    }, 3000);
 
-    return () => clearInterval(timer);
-  }, [currentUser, refreshInterval]);
+    return () => clearInterval(pollInterval);
+  }, [currentUser, refreshStamp]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -416,7 +618,7 @@ export default function App() {
   const isAdmin = currentUser.role === UserRole.ADMIN;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex selection:bg-teal-500 selection:text-white" id="main-admin-layout">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex selection:bg-teal-500 selection:text-white" id="main-admin-layout">
       {/* Sidebar navigation */}
       <Sidebar 
         currentTab={currentTab} 
@@ -426,6 +628,8 @@ export default function App() {
         onLogout={handleLogout}
         onToggleDemoRole={handleToggleDemoRole}
         onOpenNotifications={() => setNotificationsOpen(true)}
+        isDarkMode={isDarkMode}
+        onToggleTheme={() => {}}
       />
 
       {/* Main Content Area */}
@@ -456,48 +660,127 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Stats Counters Grid: Total count of each appointment type for the day */}
+              {/* Stats Counters Grid: Total count of each appointment type for today */}
               {statsData ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 animate-fade-in" id="stats-summary-grid">
-                  {[
-                    { type: "Site Visit", icon: MapPin, text: "Site Visit Today", textCol: "text-teal-700", bg: "bg-teal-50" },
-                    { type: "Reservation", icon: Bookmark, text: "Reservation Today", textCol: "text-indigo-700", bg: "bg-indigo-50" },
-                    { type: "Submit Requirements", icon: FileCheck, text: "Requirements Today", textCol: "text-amber-850 text-amber-700", bg: "bg-amber-50" },
-                    { type: "Payment", icon: CheckCircle, text: "Payment Today", textCol: "text-emerald-700", bg: "bg-emerald-50" },
-                    { type: "Inquiry", icon: MessageSquare, text: "Inquiry Today", textCol: "text-blue-700", bg: "bg-blue-50" },
-                    { type: "Meeting", icon: Users, text: "Meeting Today", textCol: "text-purple-700", bg: "bg-purple-50" },
-                    { type: "Release of Title", icon: FileText, text: "Title Release Today", textCol: "text-rose-700", bg: "bg-rose-50" },
-                  ].map((item) => {
+                (() => {
+                  const itemsList: any[] = [
+                    { type: "Site Visit", icon: MapPin, text: "Site Visit Today", textCol: "text-teal-700 dark:text-teal-400", bg: "bg-teal-50 dark:bg-teal-950/40", tooltip: "Active scheduled site visits with prospective real estate buyers today." },
+                    { type: "Reservation", icon: Bookmark, text: "Reservation Today", textCol: "text-indigo-700 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/40", tooltip: "Direct property downpayment and booking slots reserved today." },
+                    { type: "Submit Requirements", icon: FileCheck, text: "Requirements Today", textCol: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40", tooltip: "Verify buyer documentary requirements and submissions today." },
+                    { type: "Payment", icon: CheckCircle, text: "Payment Today", textCol: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40", tooltip: "Brokerage client amortizations and installment payouts due today." },
+                    { type: "Inquiry", icon: MessageSquare, text: "Inquiry Today", textCol: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/40", tooltip: "Initial inquiry requests, consultations, and prospect leads scheduled today." },
+                    { type: "Meeting", icon: Users, text: "Meeting Today", textCol: "text-purple-700 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/40", tooltip: "Face-to-face or virtual corporate meetings with prospective realty leads today." },
+                    { type: "Release of Title", icon: FileText, text: "Title Release Today", textCol: "text-rose-700 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40", tooltip: "Official property ownership document and Title Deed handovers scheduled today." },
+                  ].filter(item => {
                     const count = statsData.appointmentTypeCountsToday?.[item.type] || 0;
-                    const IconComp = item.icon;
-                    return (
-                      <div 
-                        key={item.type} 
-                        className="bg-white p-4.5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden transition-all hover:shadow-md hover:border-slate-200 flex flex-col justify-between"
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">{item.text}</div>
-                          <span className={`p-1 rounded-lg ${item.bg} ${item.textCol}`}>
-                            <IconComp className="w-3.5 h-3.5" />
-                          </span>
-                        </div>
-                        <div>
-                          <div className="text-2xl font-black text-slate-800">{count}</div>
-                          <div className="text-[9px] text-slate-450 mt-1 font-medium font-mono">Today's Schedule</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                    return count > 0;
+                  });
+
+                  // Add the conflict card ONLY for Admins
+                  const cardsToRender = [...itemsList];
+                  if (isAdmin) {
+                    cardsToRender.push({
+                      isConflict: true,
+                      type: "Conflicts Queue",
+                      icon: AlertTriangle,
+                      text: "Conflicts Queue",
+                      textCol: "text-amber-600 dark:text-amber-450",
+                      bg: "bg-amber-50/70 dark:bg-amber-950/30",
+                      tooltip: "Your total registered clients whose profiles require review due to dual-agent brokerage interest conflicts."
+                    });
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="stats-summary-grid">
+                      {cardsToRender.map((item, idx) => {
+                        const isConflict = 'isConflict' in item;
+                        const count = isConflict 
+                          ? (statsData.totalDuplicates || 0) 
+                          : (statsData.appointmentTypeCountsToday?.[item.type] || 0);
+                        const IconComp = item.icon;
+
+                        return (
+                          <motion.div 
+                            key={item.type} 
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.35, delay: idx * 0.1, ease: "easeOut" }}
+                            className="group relative bg-white dark:bg-slate-900 p-4.5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 flex flex-col justify-between"
+                          >
+                            {/* Hover Tooltip Popup */}
+                            <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 bg-slate-900 border border-slate-800 text-white text-[10px] rounded-lg p-2.5 text-center font-bold pointer-events-none shadow-lg leading-normal">
+                              {item.tooltip}
+                              {/* Tail Arrow */}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900"></div>
+                            </div>
+
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-widest pt-1 leading-none">
+                                {item.text}
+                              </div>
+                              <span className={`p-1.5 rounded-lg ${item.bg} ${item.textCol} shrink-0`}>
+                                <IconComp className="w-3.5 h-3.5" />
+                              </span>
+                            </div>
+
+                            <div>
+                              {isConflict ? (
+                                <>
+                                  <div className="text-2xl font-black text-slate-800 dark:text-slate-100">
+                                    <Counter value={count} />
+                                  </div>
+                                  <div className="text-[9px] text-slate-450 dark:text-slate-500 mt-1 font-semibold font-mono uppercase tracking-wide">
+                                    Integrity Check
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="space-y-2.5 mt-1">
+                                  <div className="flex justify-between items-baseline border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                                    <span className="text-2xl font-black text-slate-800 dark:text-slate-100">
+                                      <Counter value={count} />
+                                    </span>
+                                    <span className="text-[9px] text-slate-450 dark:text-slate-500 font-extrabold font-mono uppercase tracking-widest">
+                                      Total Today
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-1.5 text-center text-[11px] font-mono font-bold">
+                                    <div className="rounded-lg bg-sky-50 dark:bg-sky-950/40 py-1.5 border border-sky-100 dark:border-sky-900/30">
+                                      <div className="text-sky-700 dark:text-sky-400">
+                                        {statsData.appointmentTypeStatusBreakdownToday?.[item.type]?.open ?? 0}
+                                      </div>
+                                      <div className="text-[8px] text-sky-500 dark:text-sky-550 font-extrabold uppercase tracking-wider mt-0.5">Open</div>
+                                    </div>
+                                    <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 py-1.5 border border-emerald-100 dark:border-emerald-900/30">
+                                      <div className="text-emerald-700 dark:text-emerald-400">
+                                        {statsData.appointmentTypeStatusBreakdownToday?.[item.type]?.done ?? 0}
+                                      </div>
+                                      <div className="text-[8px] text-emerald-500 dark:text-emerald-550 font-extrabold uppercase tracking-wider mt-0.5">Done</div>
+                                    </div>
+                                    <div className="rounded-lg bg-rose-50 dark:bg-rose-950/40 py-1.5 border border-rose-100 dark:border-rose-900/30">
+                                      <div className="text-rose-700 dark:text-rose-400">
+                                        {statsData.appointmentTypeStatusBreakdownToday?.[item.type]?.cancelled ?? 0}
+                                      </div>
+                                      <div className="text-[8px] text-rose-500 dark:text-rose-550 font-extrabold uppercase tracking-wider mt-0.5">Cancelled</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
               ) : (
-                <div className="animate-pulse bg-white rounded-xl h-28 border border-slate-100"></div>
+                <div className="animate-pulse bg-white dark:bg-slate-900 rounded-xl h-28 border border-slate-100 dark:border-slate-800"></div>
               )}
 
               {/* Main Dashboard body layouts */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="space-y-6">
                 
-                {/* Board Column A: Primary Action Cards / Overlap alarm panels */}
-                <div className="lg:col-span-2 space-y-6">
+                {/* Board: Primary Action Cards / Overlap alarm panels */}
+                <div className="space-y-6">
                   {/* Newly discovered conflicts table log for Admins */}
                   {isAdmin && notifications.length > 0 && (
                     <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-5 shadow-sm space-y-4">
@@ -522,6 +805,293 @@ export default function App() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Today's Earliest Open Appointments */}
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 shadow-sm p-6 space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800/85 pb-3">
+                      <div className="space-y-0.5">
+                        <h2 className="text-md font-bold text-slate-850 dark:text-slate-100 uppercase tracking-widest flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-teal-600 animate-pulse" />
+                          Today's Earliest Open Appointments
+                        </h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Staged schedule order for your topmost earliest active open bookings today.</p>
+                      </div>
+                    </div>
+
+                    {earliestBookings.length > 0 ? (
+                      <div className="space-y-3.5">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-100 dark:border-slate-800/85 text-[10px] uppercase font-bold text-slate-400 dark:text-slate-550 tracking-wider">
+                                <th className="py-2.5 px-3">Appointment ID</th>
+                                <th className="py-2.5 px-3">Date & Time</th>
+                                <th className="py-2.5 px-3">Project / Location</th>
+                                <th className="py-2.5 px-3">Client Details</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-850/65">
+                              {earliestBookings.map((b) => (
+                                <tr key={b.id} className="text-xs text-slate-705 dark:text-slate-300 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                  <td className="py-3 px-3 whitespace-nowrap font-medium">
+                                    <button 
+                                      onClick={() => setSelectedEarliestBooking(b)}
+                                      className="font-mono font-extrabold text-teal-650 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 hover:underline bg-teal-50 dark:bg-teal-950/40 border border-teal-100/70 dark:border-teal-900/40 px-2.5 py-1 rounded cursor-pointer transition-colors text-left"
+                                      title="Click to view full appointment details"
+                                    >
+                                      {b.id}
+                                    </button>
+                                  </td>
+                                  <td className="py-3 px-3 font-mono font-bold whitespace-nowrap">
+                                    <div className="text-slate-900 dark:text-slate-200">{b.appointmentDate}</div>
+                                    <div className="text-slate-500 dark:text-slate-450 text-[11px] font-medium mt-1.5 flex flex-col sm:flex-row sm:items-center gap-1.5">
+                                      <span>{formatTimeWithAMPM(b.appointmentTime)}</span>
+                                      {isBookingDueSoon(b.appointmentDate, b.appointmentTime) && (
+                                        <span className="inline-flex items-center gap-0.5 bg-red-100 border border-red-200 dark:border-red-900 dark:bg-red-950/80 text-red-700 dark:text-red-350 font-extrabold px-1.5 py-0.5 rounded text-[9px] animate-pulse select-none shrink-0" title="Occurring within standard 30 min window!">
+                                          <Clock className="w-2.5 h-2.5" /> DUE SOON
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-3 max-w-[200px] font-medium text-slate-655 dark:text-slate-400">
+                                    <div className="font-bold text-slate-900 dark:text-slate-200">{b.location || "—"}</div>
+                                    {b.location && REALTY_PROJECT_ADDRESSES[b.location] && (
+                                      <div className="text-[10px] text-slate-455 dark:text-slate-550 mt-1 leading-snug font-medium italic">
+                                        Location: {REALTY_PROJECT_ADDRESSES[b.location]}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <div className="font-medium">
+                                      <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">ID: {b.clientId}</span>
+                                      <div className="font-bold text-slate-900 dark:text-slate-200">{b.clientName}</div>
+                                      <div className="text-[11px] text-slate-500 dark:text-slate-450 font-mono mt-0.5">{b.clientMobile || "—"}</div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-805/80">
+                          <button 
+                            onClick={() => setCurrentTab("bookings")}
+                            className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:text-teal-750 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                          >
+                            View All Appointments <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100/60 dark:border-slate-800/60 rounded-xl p-6 text-center">
+                        <Calendar className="w-8 h-8 text-slate-400 dark:text-slate-650 mx-auto mb-2 opacity-80" />
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">No appointments scheduled for Cebu or NCR developments today.</p>
+                        <div className="pt-3 border-t border-slate-100/20 mt-3">
+                          <button 
+                            onClick={() => setCurrentTab("bookings")}
+                            className="text-xs font-bold text-teal-600 hover:text-teal-750 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                          >
+                            View All Appointments <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 7-Day Performance Trend Sparkline Card */}
+                  {!isAdmin && completedBookingsTrend.length > 0 && (
+                    <div className="bg-white border border-slate-100 rounded-xl shadow-sm p-6 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 rounded bg-teal-50 text-teal-600">
+                            <TrendingUp className="w-4 h-4 text-teal-600" />
+                          </div>
+                          <div className="text-left">
+                            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                              7-Day Performance Trend
+                            </h2>
+                            <p className="text-xs text-slate-500 mt-0.5">Completed site visits, document submittals, and client allocations.</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono bg-teal-50 border border-teal-100 font-bold text-teal-700 px-2 py-0.5 rounded uppercase tracking-wider">
+                          7D Productivity Indicator
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col lg:flex-row items-center gap-6 pt-2">
+                        {/* Summary Metrics */}
+                        <div className="w-full lg:w-1/3 grid grid-cols-2 gap-3 pb-2 lg:pb-0 font-medium">
+                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-105">
+                            <div className="text-[9px] text-slate-455 font-bold uppercase tracking-wider">Avg Completed</div>
+                            <div className="text-lg font-extrabold text-slate-800 mt-1">
+                              {(completedBookingsTrend.reduce((acc, t) => acc + t.count, 0) / 7).toFixed(1)} <span className="text-xs text-slate-500 font-medium">Done / day</span>
+                            </div>
+                          </div>
+                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-105">
+                            <div className="text-[9px] text-slate-455 font-bold uppercase tracking-wider">Peak Volume</div>
+                            <div className="text-lg font-extrabold text-teal-600 mt-1">
+                              {Math.max(...completedBookingsTrend.map(t => t.count))} <span className="text-xs text-slate-500 font-medium">Max</span>
+                            </div>
+                          </div>
+                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-105 col-span-2">
+                            <div className="text-[9px] text-slate-455 font-bold uppercase tracking-wider">Total Completed</div>
+                            <div className="text-lg font-extrabold text-slate-900 mt-1 flex justify-between items-center">
+                              <span>{completedBookingsTrend.reduce((acc, t) => acc + t.count, 0)} files</span>
+                              <span className="text-[10px] bg-slate-100 stroke-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold">L7D Trend</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Interactive SVG Sparkline */}
+                        <div className="flex-1 w-full bg-slate-50/20 rounded-xl p-4 border border-slate-100/80 relative">
+                          <svg viewBox="0 0 500 110" className="w-full h-24 overflow-visible">
+                            <defs>
+                              <linearGradient id="sparkline-area-grad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#0d9488" stopOpacity="0.18" />
+                                <stop offset="100%" stopColor="#0d9488" stopOpacity="0.0" />
+                              </linearGradient>
+                            </defs>
+
+                            {/* Guidelines */}
+                            <line x1="30" y1="15" x2="470" y2="15" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3,3" />
+                            <line x1="30" y1="50" x2="470" y2="50" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3,3" />
+                            <line x1="30" y1="85" x2="470" y2="85" stroke="#e2e8f0" strokeWidth="1" />
+
+                            {(() => {
+                              const maxVal = Math.max(...completedBookingsTrend.map(t => t.count), 1);
+                              const width = 500;
+                              const height = 110;
+                              const paddingX = 40;
+                              const paddingY = 20;
+
+                              const points = completedBookingsTrend.map((t, idx) => {
+                                const x = paddingX + idx * ((width - paddingX * 2) / 6);
+                                const scaleValue = maxVal === 0 ? 1 : maxVal;
+                                const y = height - paddingY - (t.count / scaleValue) * (height - paddingY * 2 - 10);
+                                return { x, y, ...t };
+                              });
+
+                              const pathD = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                              const areaD = `${pathD} L ${points[points.length - 1].x} ${height - paddingY} L ${points[0].x} ${height - paddingY} Z`;
+
+                              return (
+                                <>
+                                  <path d={areaD} fill="url(#sparkline-area-grad)" />
+                                  <path d={pathD} fill="none" stroke="#0d9488" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+
+                                  {points.map((p, idx) => (
+                                    <g key={idx} className="group/node">
+                                      <circle cx={p.x} cy={p.y} r="5" fill="#ffffff" stroke="#0d9488" strokeWidth="2" className="shadow-sm" />
+                                      
+                                      {/* Counter Label */}
+                                      <text x={p.x} y={p.y - 12} textAnchor="middle" className="text-[10px] font-mono font-extrabold fill-slate-800" >
+                                        {p.count}
+                                      </text>
+
+                                      {/* Date Label */}
+                                      <text x={p.x} y="103" textAnchor="middle" className="text-[9px] font-mono font-bold fill-slate-400" >
+                                        {p.label}
+                                      </text>
+                                    </g>
+                                  ))}
+                                </>
+                              );
+                            })()}
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Real-time Agent Client Conflicts Alert Card (Client Details Conflicts) */}
+                  {!isAdmin && (
+                    <div className="bg-white border border-slate-100 rounded-xl shadow-sm p-6 space-y-4">
+                      <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 rounded bg-rose-50 text-rose-600 animate-pulse">
+                            <AlertTriangle className="w-4 h-4" />
+                          </div>
+                          <div className="text-left">
+                            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                              Client Details Conflicts ({agentConflicts.length})
+                            </h2>
+                            <p className="text-xs text-slate-500 mt-0.5">Real-time indicators showing conflicting claims on client registry entries with other active agents.</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono bg-rose-50 border border-slate-150 font-bold text-rose-750 px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">
+                          Pipeline Integrity Scan
+                        </span>
+                      </div>
+
+                      {agentConflicts.length > 0 ? (
+                        <div className="space-y-3">
+                          <p className="text-xs text-amber-800 bg-amber-50/60 border border-amber-100 rounded-lg p-3 leading-relaxed font-semibold animate-pulse">
+                            ⚠️ <strong>Attention:</strong> The clients listed below are requested by other active realty agents. These files are flagged for Administrator arbitration to determine sole client representation. Your system priority remains active pending final review.
+                          </p>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                              <thead>
+                                <tr className="border-b border-slate-100 text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                                  <th className="py-2 px-3">Conflicting Client</th>
+                                  <th className="py-2 px-3">Overlapping Agent</th>
+                                  <th className="py-2 px-3">My Date</th>
+                                  <th className="py-2 px-3">Their Date</th>
+                                  <th className="py-2 px-3">Similarity</th>
+                                  <th className="py-2 px-3 text-right">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 font-medium">
+                                {agentConflicts.map((conf) => {
+                                  // Determine which agent is current user and which is opposing agent
+                                  const isUserA = conf.agentIdA === currentUser.id;
+                                  const otherAgentName = isUserA ? conf.agentNameB : conf.agentNameA;
+                                  const myDate = isUserA ? conf.dateA : conf.dateB;
+                                  const opposingDate = isUserA ? conf.dateB : conf.dateA;
+                                  
+                                  return (
+                                    <tr key={conf.id} className="hover:bg-slate-50/50 transition-colors">
+                                      <td className="py-2.5 px-3">
+                                        <div className="font-bold text-slate-950">{conf.clientName}</div>
+                                        <div className="text-[10px] text-slate-400 font-mono">ID: {isUserA ? conf.clientIdA : conf.clientIdB}</div>
+                                      </td>
+                                      <td className="py-2.5 px-3 text-slate-705">
+                                        <div className="font-bold text-slate-800">{otherAgentName}</div>
+                                        <div className="text-[10px] text-slate-450 italic">Opposing broker claim</div>
+                                      </td>
+                                      <td className="py-2.5 px-3 font-mono text-emerald-700 font-bold">
+                                        {myDate}
+                                      </td>
+                                      <td className="py-2.5 px-3 font-mono text-slate-500">
+                                        {opposingDate}
+                                      </td>
+                                      <td className="py-2.5 px-3">
+                                        <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[10px] font-mono">
+                                          {conf.similarityScore}% Match
+                                        </span>
+                                      </td>
+                                      <td className="py-2.5 px-3 text-right">
+                                        <span className="inline-flex items-center gap-1 text-[10px] bg-sky-50 border border-sky-100 text-sky-700 hover:text-sky-805 font-bold px-2 py-0.5 rounded uppercase tracking-wider animate-pulse">
+                                          Pending Review
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-5 text-center flex flex-col items-center justify-center">
+                          <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
+                            <CheckCircle className="w-5 h-5 text-emerald-600" />
+                          </div>
+                          <p className="text-xs font-bold text-slate-800">Your Lead Pipeline is 100% Secure</p>
+                          <p className="text-[11px] text-slate-450 mt-0.5 font-medium">No overlapping agent claims found in the live registry. All commissions and allocation tracks are safe.</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -590,70 +1160,6 @@ export default function App() {
                         </button>
                       )}
                     </div>
-                  </div>
-                </div>
-
-                {/* Board Column B: Agent Performance Leaderboard */}
-                <div className="lg:col-span-1 space-y-6">
-                  <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
-                    <div className="flex flex-col gap-2.5 border-b border-slate-100 pb-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                          <Award className="w-4 h-4 text-amber-500" />
-                          Performance Leaderboard
-                        </h3>
-                        {isAdmin && (
-                          <button onClick={() => setCurrentTab("reports")} className="text-[10px] text-teal-600 hover:underline font-bold uppercase">
-                            All reports
-                          </button>
-                        )}
-                      </div>
-
-                      {isAdmin && (
-                        <div className="flex items-center justify-between pt-0.5 text-[11px] text-slate-500">
-                          <span className="flex items-center gap-1 text-slate-450 font-medium select-none">
-                            <Clock className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                             Leaderboard Refresh:
-                          </span>
-                          <select
-                            id="leaderboard-refresh-interval"
-                            value={refreshInterval}
-                            onChange={(e) => setRefreshInterval(Number(e.target.value))}
-                            className="bg-slate-50 hover:bg-slate-100 border border-slate-200/85 rounded-lg px-2 py-1 text-[11px] text-slate-700 font-bold focus:outline-none focus:ring-1 focus:ring-teal-600 cursor-pointer transition-all"
-                          >
-                            <option value={0}>Manual Off</option>
-                            <option value={1}>1 Min Interval</option>
-                            <option value={5}>5 Min Interval</option>
-                            <option value={10}>10 Min Interval</option>
-                          </select>
-                        </div>
-                      )}
-                    </div>
-
-                    {statsData?.leaderboard ? (
-                      <div className="space-y-3">
-                        {statsData.leaderboard.slice(0, 3).map((agent: any, idx: number) => (
-                          <div key={agent.id} className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100/80 rounded-xl hover:shadow-sm transition-shadow">
-                            <div className="flex items-center gap-2.5">
-                              <span className="w-5 h-5 rounded-full bg-slate-250 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">
-                                {idx + 1}
-                              </span>
-                              <div>
-                                <h4 className="font-bold text-slate-800 text-xs truncate max-w-[120px]">{agent.name}</h4>
-                                <span className="text-[9px] text-slate-450 mt-0.5 block font-medium">{agent.clientsCount} clients registered</span>
-                              </div>
-                            </div>
-
-                            <div className="text-right shrink-0">
-                              <div className="font-extrabold text-[#0D9488] font-mono text-xs">{agent.bookingsCount} Appts</div>
-                              <span className="text-[9px] text-slate-500 font-semibold uppercase">{agent.clientsCount} Clients</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="animate-pulse h-32 bg-slate-50 rounded"></div>
-                    )}
                   </div>
                 </div>
 
@@ -792,6 +1298,127 @@ export default function App() {
                 className="w-full py-2 bg-teal-700 hover:bg-teal-800 text-white font-semibold rounded-lg text-xs shadow-sm cursor-pointer"
               >
                 Inspect Dual Entries
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EARLIEST BOOKING DETAILS MODAL */}
+      {selectedEarliestBooking && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in text-xs" id="earliest-detail-overlay">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
+            {/* Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-teal-700 dark:text-teal-400" />
+                <div className="text-left">
+                  <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">Appointment Details</h3>
+                  <p className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">Reference ID: {selectedEarliestBooking.id}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedEarliestBooking(null)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 text-slate-605 dark:text-slate-300 text-left">
+              {/* Client ID / Contact */}
+              <div className="bg-slate-50 dark:bg-slate-950/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
+                <div className="text-[9px] uppercase font-extrabold text-teal-600 dark:text-teal-400 tracking-wider flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5" /> Client Profile Details
+                </div>
+                <div className="space-y-1">
+                  <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">{selectedEarliestBooking.clientName}</div>
+                  <div>Client ID: <span className="font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-200/60 dark:bg-slate-850 px-1.5 py-0.5 rounded">{selectedEarliestBooking.clientId}</span></div>
+                  {selectedEarliestBooking.clientMobile && (
+                    <div>Mobile Contact: <span className="font-mono font-semibold text-slate-850 dark:text-slate-200">{selectedEarliestBooking.clientMobile}</span></div>
+                  )}
+                </div>
+              </div>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50/50 dark:bg-slate-950/30 p-3.5 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
+                  <div className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-slate-400" /> Date
+                  </div>
+                  <div className="font-extrabold text-slate-800 dark:text-slate-200 text-xs font-mono">{selectedEarliestBooking.appointmentDate}</div>
+                </div>
+                <div className="bg-slate-50/50 dark:bg-slate-950/30 p-3.5 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
+                  <div className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-slate-400" /> Scheduled Time
+                  </div>
+                  <div className="font-extrabold text-slate-800 dark:text-slate-200 text-xs font-mono">{formatTimeWithAMPM(selectedEarliestBooking.appointmentTime)}</div>
+                </div>
+              </div>
+
+              {/* Status and Type */}
+              <div className="space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">
+                    Appointment Type:
+                  </span>
+                  <span className="font-extrabold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-2.5 py-1 rounded text-xs select-none">
+                    {selectedEarliestBooking.appointmentType}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">
+                    Current Status:
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold border bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-900">
+                    {selectedEarliestBooking.status}
+                  </span>
+                </div>
+
+                {selectedEarliestBooking.location && (
+                  <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                    <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> Site Project Location:
+                    </span>
+                    <div className="font-extrabold text-slate-850 dark:text-slate-200 pl-4.5 text-xs">
+                      {selectedEarliestBooking.location}
+                    </div>
+                    {REALTY_PROJECT_ADDRESSES[selectedEarliestBooking.location] && (
+                      <div className="pl-4.5 text-[10px] text-slate-450 dark:text-slate-400 font-medium italic">
+                        Complete Address: {REALTY_PROJECT_ADDRESSES[selectedEarliestBooking.location]}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {selectedEarliestBooking.notes && (
+                  <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                    <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">
+                      Remarks / Notes:
+                    </span>
+                    <p className="text-slate-600 dark:text-slate-350 bg-slate-50 dark:bg-slate-950/30 p-2.5 rounded border dark:border-slate-800 italic font-medium">
+                      "{selectedEarliestBooking.notes}"
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions Footer */}
+            <div className="flex justify-end items-center gap-2.5 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950">
+              <button 
+                onClick={() => {
+                  setSelectedEarliestBooking(null);
+                  setCurrentTab("bookings");
+                }}
+                className="px-4 py-2 rounded-lg text-xs font-bold text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-350 hover:underline bg-slate-100 dark:bg-slate-805 mr-auto transition-all cursor-pointer"
+              >
+                Go to Bookings Registry
+              </button>
+              <button 
+                onClick={() => setSelectedEarliestBooking(null)}
+                className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-slate-700 hover:bg-slate-800 border border-transparent transition-all cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

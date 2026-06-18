@@ -115,7 +115,9 @@ export interface Notification {
   message: string;
   timestamp: string;
   read: boolean;
-  type: "DUPLICATE_ALERT" | "INFO" | "SYSTEM";
+  type: "DUPLICATE_ALERT" | "INFO" | "SYSTEM" | "ALERT";
+  agentId?: string;
+  clientId?: string;
 }
 
 export interface AuditLog {

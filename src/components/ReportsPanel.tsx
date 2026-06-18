@@ -117,17 +117,17 @@ export function ReportsPanel() {
       {/* Page Title & Downloader */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <FileText className="w-6 h-6 text-teal-700" />
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
+            <FileText className="w-6 h-6 text-teal-700 dark:text-teal-400" />
             Executive Reports & Analytics
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Acquisition and compliance trends, agency performance lists, and spreadsheet CSV ledger exporting systems.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Acquisition and compliance trends, agency performance lists, and spreadsheet CSV ledger exporting systems.</p>
         </div>
 
         <div className="flex gap-2.5">
           <button
             onClick={handlePrintPDF}
-            className="px-4 py-2 bg-white text-slate-700 hover:bg-slate-50 border border-slate-205 font-semibold text-xs rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-205 dark:border-slate-700 font-semibold text-xs rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />
             Print / Save to PDF
@@ -137,35 +137,35 @@ export function ReportsPanel() {
 
       {/* Primary KPI Grid Summary numbers */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="stats-dashboard-grid-reports">
-        <div className="bg-white p-4.5 rounded-xl border border-slate-100 shadow-sm">
-          <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">Active Agents</div>
-          <div className="text-2xl font-bold text-slate-800">{summary.totalActiveAgents}</div>
-          <div className="text-[10px] text-green-600 mt-1.5 font-medium">100% Accountable</div>
+        <div className="bg-white dark:bg-slate-900 p-4.5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+          <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mb-1">Active Agents</div>
+          <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{summary.totalActiveAgents}</div>
+          <div className="text-[10px] text-green-600 dark:text-green-400 mt-1.5 font-medium">100% Accountable</div>
         </div>
-        <div className="bg-white p-4.5 rounded-xl border border-slate-100 shadow-sm">
-          <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">Total Registrations</div>
-          <div className="text-2xl font-bold text-slate-800">{summary.totalClients}</div>
-          <div className="text-[10px] text-teal-600 mt-1.5 font-medium">PHP 12.5M Estimated pipeline</div>
+        <div className="bg-white dark:bg-slate-900 p-4.5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+          <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mb-1">Total Registrations</div>
+          <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{summary.totalClients}</div>
+          <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-1.5 font-medium">PHP 12.5M Estimated pipeline</div>
         </div>
-        <div className="bg-white p-4.5 rounded-xl border border-slate-100 shadow-sm">
-          <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">Reservation Count</div>
-          <div className="text-2xl font-bold text-slate-800">{summary.totalBookings}</div>
-          <div className="text-[10px] text-slate-500 mt-1.5 font-medium">All properties consolidated</div>
+        <div className="bg-white dark:bg-slate-900 p-4.5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+          <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mb-1">Reservation Count</div>
+          <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{summary.totalBookings}</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 font-medium">All properties consolidated</div>
         </div>
-        <div className="bg-white p-4.5 rounded-xl border border-slate-100 shadow-sm">
-          <div className="text-xs text-slate-450 font-semibold uppercase tracking-wider mb-1">Duplicate Rate</div>
-          <div className="text-2xl font-bold text-amber-600">{Math.round((summary.totalDuplicates / (summary.totalClients || 1)) * 100)}%</div>
-          <div className="text-[10px] text-amber-600 mt-1.5 font-medium">{summary.totalDuplicates} overlapping profiles flagged</div>
+        <div className="bg-white dark:bg-slate-900 p-4.5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+          <div className="text-xs text-slate-450 dark:text-slate-500 font-semibold uppercase tracking-wider mb-1">Duplicate Rate</div>
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{Math.round((summary.totalDuplicates / (summary.totalClients || 1)) * 100)}%</div>
+          <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5 font-medium">{summary.totalDuplicates} overlapping profiles flagged</div>
         </div>
       </div>
 
       {/* Visual Analytics Inline-SVG Charts Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6" id="report-charts-grid">
         {/* Chart A: Monthly registrations bar graph */}
-        <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div>
-            <h3 className="font-bold text-slate-850 text-sm tracking-tight mb-1">Monthly Acquisition Volume</h3>
-            <p className="text-xs text-slate-400 mb-6">Total client registrations recorded over recent months.</p>
+            <h3 className="font-bold text-slate-850 dark:text-slate-200 text-sm tracking-tight mb-1">Monthly Acquisition Volume</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">Total client registrations recorded over recent months.</p>
           </div>
 
           <div className="h-44 w-full flex items-end justify-between px-2 gap-4">
@@ -187,7 +187,7 @@ export function ReportsPanel() {
                     </span>
                   </div>
                   {/* Label */}
-                  <span className="text-xs text-slate-500 mt-2 font-medium">{m.month}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-450 mt-2 font-medium">{m.month}</span>
                 </div>
               );
             })}
@@ -195,41 +195,41 @@ export function ReportsPanel() {
         </div>
 
         {/* Chart B: Donut duplicate trends */}
-        <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div>
-            <h3 className="font-bold text-slate-850 text-sm tracking-tight mb-1">Lead Health Registry Integrity</h3>
-            <p className="text-xs text-slate-400 mb-4">Total duplicate overlaps categorized under tracking layers.</p>
+            <h3 className="font-bold text-slate-850 dark:text-slate-200 text-sm tracking-tight mb-1">Lead Health Registry Integrity</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Total duplicate overlaps categorized under tracking layers.</p>
           </div>
 
           <div className="flex flex-row items-center justify-around h-44">
             {/* Donut graphic */}
             <div className="relative w-28 h-28 shrink-0">
               <svg className="w-full h-full transform -rotate-95" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" stroke="#F1F5F9" strokeWidth="11" fill="transparent" />
+                <circle cx="50" cy="50" r="40" strokeWidth="11" fill="transparent" className="stroke-slate-100 dark:stroke-slate-800" />
                 <circle cx="50" cy="50" r="40" stroke="#EF4444" strokeWidth="11" fill="transparent" strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * (summary.totalDuplicates / (summary.totalClients || 1)))} />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-2xl font-bold text-slate-800">
+                <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                   {summary.totalDuplicates}
                 </span>
-                <span className="text-[10px] text-slate-400 capitalize">Overlaps</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 capitalize">Overlaps</span>
               </div>
             </div>
 
             {/* Legends list */}
-            <div className="space-y-3.5 text-xs text-slate-600 shrink-0">
+            <div className="space-y-3.5 text-xs text-slate-600 dark:text-slate-400 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="w-3.5 h-3.5 rounded-full bg-red-500 block"></span>
                 <div>
-                  <strong className="block text-slate-900">Duplicated Index</strong>
-                  <span className="text-[11px] text-slate-400">{summary.totalDuplicates} Overlapping Claims</span>
+                  <strong className="block text-slate-900 dark:text-slate-200">Duplicated Index</strong>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-505">{summary.totalDuplicates} Overlapping Claims</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-3.5 h-3.5 rounded-full bg-slate-100 border border-slate-200 block"></span>
+                <span className="w-3.5 h-3.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-705 block"></span>
                 <div>
-                  <strong className="block text-slate-900">Clean Records</strong>
-                  <span className="text-[11px] text-slate-400">{summary.totalClients - summary.totalDuplicates} Secure Profiles</span>
+                  <strong className="block text-slate-900 dark:text-slate-200">Clean Records</strong>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-505">{summary.totalClients - summary.totalDuplicates} Secure Profiles</span>
                 </div>
               </div>
             </div>
@@ -238,18 +238,18 @@ export function ReportsPanel() {
       </div>
 
       {/* Interactive download action table list */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden" id="reports-exporter-panel">
-        <div className="bg-slate-50 border-b border-slate-105 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden" id="reports-exporter-panel">
+        <div className="bg-slate-50 dark:bg-slate-950 border-b border-slate-105 dark:border-slate-800 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-teal-700" />
-            <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">Reports Exporter Registry</h3>
+            <Sliders className="w-4 h-4 text-teal-700 dark:text-teal-400" />
+            <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 uppercase tracking-wider">Reports Exporter Registry</h3>
           </div>
 
           <div className="flex items-center gap-3">
             <select
               value={selectedReportType}
               onChange={(e) => setSelectedReportType(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded border border-slate-200 bg-white focus:outline-none focus:border-teal-500 font-semibold text-slate-700 cursor-pointer"
+              className="px-3 py-1.5 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:border-teal-500 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <option value="agent-performance">Agent Sales Performance Ledger</option>
               <option value="client-acquisition">Monthly Acquisition Leads Index</option>
@@ -272,7 +272,7 @@ export function ReportsPanel() {
           {selectedReportType === "agent-performance" && (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100 text-slate-500 uppercase font-bold border-b border-slate-150">
+                <tr className="bg-slate-100 dark:bg-slate-950 text-slate-500 dark:text-slate-400 uppercase font-bold border-b border-slate-150 dark:border-slate-850">
                   <th className="px-4 py-3">Agent Representative</th>
                   <th className="px-4 py-3">Account Status</th>
                   <th className="px-4 py-3 text-center">Active Client Registries</th>
@@ -280,20 +280,20 @@ export function ReportsPanel() {
                   <th className="px-4 py-3 text-right">Reservation Pipeline Volume</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100/70">
+              <tbody className="divide-y divide-slate-100/70 dark:divide-slate-800/60">
                 {summary.leaderboard.map((item) => (
-                  <tr key={item.id} className="odd:bg-white even:bg-slate-50/50 hover:bg-teal-50/30 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-slate-800">{item.name}</td>
+                  <tr key={item.id} className="odd:bg-white dark:odd:bg-slate-900 even:bg-slate-50/50 dark:even:bg-slate-950/30 hover:bg-teal-50/30 dark:hover:bg-teal-950/20 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{item.name}</td>
                     <td className="px-4 py-3">
                       <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
-                        item.status === "Active" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+                        item.status === "Active" ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
                       }`}>
                         {item.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center text-slate-700 font-medium">{item.clientsCount} clients</td>
-                    <td className="px-4 py-3 text-center text-slate-700 font-medium">{item.bookingsCount} files</td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-900">PHP {(item.salesVolume).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-medium">{item.clientsCount} clients</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-medium">{item.bookingsCount} files</td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-slate-100">PHP {(item.salesVolume).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -303,16 +303,16 @@ export function ReportsPanel() {
           {selectedReportType === "client-acquisition" && (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100 text-slate-500 uppercase font-bold border-b border-slate-150">
+                <tr className="bg-slate-100 dark:bg-slate-950 text-slate-500 dark:text-slate-400 uppercase font-bold border-b border-slate-150 dark:border-slate-850">
                   <th className="px-4 py-3">Month</th>
                   <th className="px-4 py-3 text-right">Raw Leaded Registration Count</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100/70">
+              <tbody className="divide-y divide-slate-100/70 dark:divide-slate-800/60">
                 {summary.monthlyRegistrations.map((m, idx) => (
-                  <tr key={idx} className="odd:bg-white even:bg-slate-50/50 hover:bg-teal-50/30 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-slate-800">{m.month}</td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-900">{m.count} registered lines</td>
+                  <tr key={idx} className="odd:bg-white dark:odd:bg-slate-900 even:bg-slate-50/50 dark:even:bg-slate-950/30 hover:bg-teal-50/30 dark:hover:bg-teal-950/20 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{m.month}</td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-slate-100">{m.count} registered lines</td>
                   </tr>
                 ))}
               </tbody>
@@ -322,16 +322,16 @@ export function ReportsPanel() {
           {selectedReportType === "duplicate-trend" && (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100 text-slate-500 uppercase font-bold border-b border-slate-150">
+                <tr className="bg-slate-100 dark:bg-slate-950 text-slate-500 dark:text-slate-400 uppercase font-bold border-b border-slate-150 dark:border-slate-850">
                   <th className="px-4 py-3">Overlap Category Status</th>
                   <th className="px-4 py-3 text-right">Claim Overlaps Sum</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100/70">
+              <tbody className="divide-y divide-slate-100/70 dark:divide-slate-800/60">
                 {summary.duplicateTrends.map((d, idx) => (
-                  <tr key={idx} className="odd:bg-white even:bg-slate-50/50 hover:bg-teal-50/30 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-slate-800">{d.status} Duplicate Flag</td>
-                    <td className="px-4 py-3 text-right font-bold text-amber-700">{d.count} accounts</td>
+                  <tr key={idx} className="odd:bg-white dark:odd:bg-slate-900 even:bg-slate-50/50 dark:even:bg-slate-950/30 hover:bg-teal-50/30 dark:hover:bg-teal-950/20 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{d.status} Duplicate Flag</td>
+                    <td className="px-4 py-3 text-right font-bold text-amber-700 dark:text-amber-400">{d.count} accounts</td>
                   </tr>
                 ))}
               </tbody>

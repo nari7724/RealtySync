@@ -17,7 +17,9 @@ import {
   TrendingUp, 
   Shield, 
   X,
-  Sparkles
+  Sparkles,
+  Sun,
+  Moon
 } from "lucide-react";
 import { UserRole } from "../types.ts";
 
@@ -29,6 +31,8 @@ interface SidebarProps {
   onToggleDemoRole: () => void;
   unreadCount: number;
   onOpenNotifications: () => void;
+  isDarkMode: boolean;
+  onToggleTheme: () => void;
 }
 
 export function Sidebar({ 
@@ -38,7 +42,9 @@ export function Sidebar({
   unreadCount, 
   onLogout, 
   onToggleDemoRole, 
-  onOpenNotifications 
+  onOpenNotifications,
+  isDarkMode,
+  onToggleTheme
 }: SidebarProps) {
   const isAdmin = currentUser.role === UserRole.ADMIN;
 
