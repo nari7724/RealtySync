@@ -117,8 +117,13 @@ export function AuditLogs() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100/70 dark:divide-slate-800/60 text-sm">
-                {filteredLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                {filteredLogs.map((log, index) => (
+                  <tr 
+                    key={log.id} 
+                    className={`${
+                      index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/30 dark:bg-slate-950/20"
+                    } hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors`}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap text-slate-400 dark:text-slate-500 text-xs">
                       <div className="flex items-center gap-1.5 font-mono">
                         <Calendar className="w-3.5 h-3.5 text-slate-350 dark:text-slate-650" />

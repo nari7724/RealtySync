@@ -25,15 +25,25 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { Client, Agent, Booking, BookingStatus, UserRole } from "../types.ts";
+import { ClientForm } from "./ClientForm.tsx";
 
 interface ClientMasterListProps {
   currentUser: { id: string; firstName: string; lastName: string; role: UserRole };
   agentsList: Agent[];
-  onTriggerForm: () => void;
+  onTriggerForm?: () => void;
   triggerRefreshStamp: number;
+  autoOpenForm?: boolean;
+  setAutoOpenForm?: (val: boolean) => void;
 }
 
-export function ClientMasterList({ currentUser, agentsList, onTriggerForm, triggerRefreshStamp }: ClientMasterListProps) {
+export function ClientMasterList({ 
+  currentUser, 
+  agentsList, 
+  onTriggerForm, 
+  triggerRefreshStamp,
+  autoOpenForm,
+  setAutoOpenForm
+}: ClientMasterListProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -52,6 +62,16 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
   const [allDualEntries, setAllDualEntries] = useState<any[]>([]);
   const [realtyProjects, setRealtyProjects] = useState<string[]>([]);
 
+  // Custom Add Client Modal triggers
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+
+  // Custom Confirm Overlay State
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
   // New Appointment Form States
   const [bookingFormData, setBookingFormData] = useState({
     appointmentType: "Site Visit" as any,
@@ -63,6 +83,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
   });
   const [bookingSaving, setBookingSaving] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [addressInputFocused, setAddressInputFocused] = useState(false);
 
   // Edit Client Form State
   const [clientFormData, setClientFormData] = useState({
@@ -144,6 +165,15 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
     fetchRealtyProjects();
   }, [page, search, selectedAgent, selectedDupStatus, triggerRefreshStamp]);
 
+  useEffect(() => {
+    if (autoOpenForm) {
+      setShowAddClientModal(true);
+      if (setAutoOpenForm) {
+        setAutoOpenForm(false);
+      }
+    }
+  }, [autoOpenForm, setAutoOpenForm]);
+
   const handleBookingOpen = (client: Client) => {
     setBookingClient(client);
     setBookingError(null);
@@ -178,42 +208,49 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
 
     const combinedDateTime = `${bookingFormData.appointmentDate}T${bookingFormData.appointmentTime}`;
 
-    setBookingSaving(true);
-    try {
-      const res = await fetch("/api/bookings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: bookingClient.id,
-          appointmentType: bookingFormData.appointmentType,
-          appointmentDate: bookingFormData.appointmentDate,
-          appointmentTime: bookingFormData.appointmentTime,
-          dateTime: combinedDateTime,
-          location: bookingFormData.location,
-          status: bookingFormData.status || "Open",
-          notes: bookingFormData.notes,
-          userContext: {
-            id: currentUser.id,
-            userName: `${currentUser.firstName} ${currentUser.lastName}`,
-            role: currentUser.role
+    setConfirmDialog({
+      title: "Confirm Appointment schedule",
+      message: `Are you sure you want to save and schedule this ${bookingFormData.appointmentType} appointment?`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setBookingSaving(true);
+        try {
+          const res = await fetch("/api/bookings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clientId: bookingClient.id,
+              appointmentType: bookingFormData.appointmentType,
+              appointmentDate: bookingFormData.appointmentDate,
+              appointmentTime: bookingFormData.appointmentTime,
+              dateTime: combinedDateTime,
+              location: bookingFormData.location,
+              status: bookingFormData.status || "Open",
+              notes: bookingFormData.notes,
+              userContext: {
+                id: currentUser.id,
+                userName: `${currentUser.firstName} ${currentUser.lastName}`,
+                role: currentUser.role
+              }
+            }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json();
+            setBookingError(errData.error || "The client already has an appointment scheduled at this exact date and time. Please select another slot.");
+            return;
           }
-        }),
-      });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        setBookingError(errData.error || "The client already has an appointment scheduled at this exact date and time. Please select another slot.");
-        return;
+          setBookingClient(null);
+          fetchClients();
+        } catch (err) {
+          console.error("Appointment creation error:", err);
+          setBookingError("Failed to schedule appointment. Please check network connectivity.");
+        } finally {
+          setBookingSaving(false);
+        }
       }
-
-      setBookingClient(null);
-      fetchClients();
-    } catch (err) {
-      console.error("Appointment creation error:", err);
-      setBookingError("Failed to schedule appointment. Please check network connectivity.");
-    } finally {
-      setBookingSaving(false);
-    }
+    });
   };
 
   const handleEditOpen = (client: Client) => {
@@ -234,30 +271,37 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
     e.preventDefault();
     if (!editingClient) return;
 
-    setClientSaving(true);
-    try {
-      const res = await fetch(`/api/clients/${editingClient.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...clientFormData,
-          userContext: {
-            id: currentUser.id,
-            userName: `${currentUser.firstName} ${currentUser.lastName}`,
-            role: currentUser.role
-          }
-        }),
-      });
+    setConfirmDialog({
+      title: "Update Client Profile Details",
+      message: "Are you sure you want to save and update these client profile details?",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setClientSaving(true);
+        try {
+          const res = await fetch(`/api/clients/${editingClient.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...clientFormData,
+              userContext: {
+                id: currentUser.id,
+                userName: `${currentUser.firstName} ${currentUser.lastName}`,
+                role: currentUser.role
+              }
+            }),
+          });
 
-      if (res.ok) {
-        setEditingClient(null);
-        fetchClients();
+          if (res.ok) {
+            setEditingClient(null);
+            fetchClients();
+          }
+        } catch (err) {
+          console.error("Client update error:", err);
+        } finally {
+          setClientSaving(false);
+        }
       }
-    } catch (err) {
-      console.error("Client update error:", err);
-    } finally {
-      setClientSaving(false);
-    }
+    });
   };
 
   return (
@@ -277,7 +321,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
         </div>
 
         <button
-          onClick={onTriggerForm}
+          onClick={() => setShowAddClientModal(true)}
           id="btn-trigger-register-client"
           className="px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
         >
@@ -364,8 +408,13 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100/70 dark:divide-slate-800/80 text-sm">
-                {clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-slate-50/40 dark:hover:bg-slate-950/40 transition-colors">
+                {clients.map((client, index) => (
+                  <tr 
+                    key={client.id} 
+                    className={`${
+                      index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/30 dark:bg-slate-950/20"
+                    } hover:bg-slate-50/40 dark:hover:bg-slate-950/40 transition-colors`}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => handleEditOpen(client)}
@@ -434,7 +483,7 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                           className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
                         >
                           <BookOpen className="w-3.5 h-3.5" />
-                          Set an Appointment
+                          Set Appointment
                         </button>
 
                         <button
@@ -583,26 +632,38 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                     </select>
                   </div>
 
-                  {bookingFormData.location && (
-                    <div className="animate-fade-in">
-                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Project Complete Location Address</label>
-                      <input
-                        type="text"
-                        readOnly
-                        value={({
-                          "Avida Towers Riala": "Apas, Cebu IT Park, Cebu City, Cebu",
-                          "Solinea Resort Condominium": "Cardiff St, Cebu IT Park, Cebu City, Cebu",
-                          "The Alcoves": "Luz, Cebu City, Cebu",
-                          "Park Point Residences": "Cardinal Rosales Ave, Cebu City, Cebu",
-                          "Amara Subdivision": "Catarman, Liloan, Cebu",
-                          "Amaia Steps Mandaue": "Plaridel St, Mandaue City, Cebu",
-                          "Cebu IT Park Residences": "Jose Maria del Mar St, Cebu City, Cebu",
-                          "Marco Polo Residences": "Nivel Hills, Lahug, Cebu City, Cebu"
-                        }[bookingFormData.location]) || ""}
-                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-slate-650 dark:text-slate-350 focus:outline-none cursor-not-allowed"
-                      />
-                    </div>
-                  )}
+                  <div className="animate-fade-in">
+                    <label className="block text-xs font-bold text-[#1d293d] dark:text-[#1d293d] uppercase tracking-wider mb-1">Project Complete Location Address</label>
+                    <input
+                      type="text"
+                      readOnly
+                      onFocus={() => setAddressInputFocused(true)}
+                      onBlur={() => setAddressInputFocused(false)}
+                      value={({
+                        "Avida Towers Riala": "Apas, Cebu IT Park, Cebu City, Cebu",
+                        "Solinea Resort Condominium": "Cardiff St, Cebu IT Park, Cebu City, Cebu",
+                        "The Alcoves": "Luz, Cebu City, Cebu",
+                        "Park Point Residences": "Cardinal Rosales Ave, Cebu City, Cebu",
+                        "Amara Subdivision": "Catarman, Liloan, Cebu",
+                        "Amaia Steps Mandaue": "Plaridel St, Mandaue City, Cebu",
+                        "Cebu IT Park Residences": "Jose Maria del Mar St, Cebu City, Cebu",
+                        "Marco Polo Residences": "Nivel Hills, Lahug, Cebu City, Cebu"
+                      }[bookingFormData.location]) || ""}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-slate-650 dark:text-slate-350 focus:outline-none cursor-not-allowed"
+                    />
+                    {addressInputFocused && !(({
+                      "Avida Towers Riala": "Apas, Cebu IT Park, Cebu City, Cebu",
+                      "Solinea Resort Condominium": "Cardiff St, Cebu IT Park, Cebu City, Cebu",
+                      "The Alcoves": "Luz, Cebu City, Cebu",
+                      "Park Point Residences": "Cardinal Rosales Ave, Cebu City, Cebu",
+                      "Amara Subdivision": "Catarman, Liloan, Cebu",
+                      "Amaia Steps Mandaue": "Plaridel St, Mandaue City, Cebu",
+                      "Cebu IT Park Residences": "Jose Maria del Mar St, Cebu City, Cebu",
+                      "Marco Polo Residences": "Nivel Hills, Lahug, Cebu City, Cebu"
+                    }[bookingFormData.location]) || "") && (
+                      <small className="block mt-1 text-red-650 dark:text-red-400 font-bold transition-all animate-pulse">Required field</small>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -646,28 +707,28 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                 ></textarea>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBookingClient(null)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-650 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
-                >
-                  Cancel
-                </button>
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 text-xs">
                 <button
                   type="submit"
                   disabled={bookingSaving}
                   id="btn-booking-save-submit"
-                  className="px-4 py-2 text-sm font-bold text-white bg-teal-700 hover:bg-teal-800 disabled:bg-teal-400 rounded-lg shadow inline-flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2 text-sm font-bold text-white bg-[#00786f] hover:bg-[#005e57] disabled:bg-[#00786f]/50 rounded-lg shadow inline-flex items-center gap-1.5 cursor-pointer transition-all"
                 >
                   {bookingSaving ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Scheduling...
+                      Saving...
                     </>
                   ) : (
-                    "Schedule Appointment"
+                    "Save"
                   )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBookingClient(null)}
+                  className="px-4 py-2 text-sm font-bold text-white bg-slate-700 hover:bg-slate-800 rounded-lg shadow border border-transparent hover:shadow cursor-pointer transition-all"
+                >
+                  Cancel
                 </button>
               </div>
             </form>
@@ -761,20 +822,20 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
                 ></textarea>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingClient(null)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-655 dark:text-slate-350 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
-                >
-                  Cancel
-                </button>
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 text-xs">
                 <button
                   type="submit"
                   disabled={clientSaving}
-                  className="px-4 py-2 text-sm font-bold text-white bg-teal-700 hover:bg-teal-800 rounded-lg shadow cursor-pointer"
+                  className="px-4 py-2 text-sm font-bold text-white bg-[#00786f] hover:bg-[#005e57] rounded-lg shadow cursor-pointer transition-all disabled:bg-[#00786f]/50"
                 >
-                  {clientSaving ? "Saving..." : "Save Changes"}
+                  {clientSaving ? "Saving..." : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingClient(null)}
+                  className="px-4 py-2 text-sm font-bold text-white bg-slate-700 hover:bg-slate-800 rounded-lg shadow border border-transparent hover:shadow cursor-pointer transition-all"
+                >
+                  Cancel
                 </button>
               </div>
             </form>
@@ -984,6 +1045,60 @@ export function ClientMasterList({ currentUser, agentsList, onTriggerForm, trigg
           </div>
         );
       })()}
+
+      {/* 5. ADD CLIENT FORM MODAL VIEW */}
+      {showAddClientModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in text-xs overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-2xl w-full my-8">
+            <div className="p-6 relative text-left">
+              <button 
+                onClick={() => setShowAddClientModal(false)}
+                className="absolute top-6 right-6 text-slate-450 hover:text-slate-605 dark:text-slate-400 dark:hover:text-slate-205 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <ClientForm
+                onSuccess={() => {
+                  setShowAddClientModal(false);
+                  fetchClients();
+                  fetchDualEntries();
+                }}
+                onCancel={() => setShowAddClientModal(false)}
+                agentsList={agentsList}
+                currentUser={currentUser}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. SYSTEM-WIDE REUSABLE REACT CONFIRMATION MODAL */}
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in text-xs">
+          <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-150 dark:border-slate-800 shadow-2xl max-w-sm w-full overflow-hidden shrink-0 text-left">
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-slate-105 text-sm leading-snug">{confirmDialog.title}</h3>
+                <p className="text-slate-505 dark:text-slate-400 text-xs mt-2 leading-relaxed">{confirmDialog.message}</p>
+              </div>
+              <div className="flex justify-end gap-2.5 pt-1">
+                <button
+                  onClick={() => setConfirmDialog(null)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border dark:border-slate-800"
+                >
+                  No, Cancel
+                </button>
+                <button
+                  onClick={confirmDialog.onConfirm}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005a53] transition-all cursor-pointer shadow-sm"
+                >
+                  Confirm & Action
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

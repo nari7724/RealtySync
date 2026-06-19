@@ -19,7 +19,8 @@ import {
   X,
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  Building2
 } from "lucide-react";
 import { UserRole } from "../types.ts";
 
@@ -52,6 +53,7 @@ export function Sidebar({
     { id: "dashboard", label: "Broker Dashboard", icon: LayoutDashboard },
     { id: "agents", label: "Agent Management", icon: Users },
     { id: "clients", label: "Client Records", icon: UserCheck },
+    { id: "projects", label: "Project Inventory", icon: Building2 },
     { id: "conflicts", label: "Dual Entry Queue", icon: Layers, badgeCount: unreadCount },
     { id: "audit", label: "Audit Ledger", icon: History },
     { id: "reports", label: "Performance Reports", icon: FileText },
@@ -60,7 +62,7 @@ export function Sidebar({
   const agentMenu = [
     { id: "dashboard", label: "Agent Console", icon: LayoutDashboard },
     { id: "clients", label: "My Clients", icon: UserCheck },
-    { id: "register", label: "Register Client", icon: PlusCircle },
+    { id: "projects", label: "My Projects", icon: Building2 },
     { id: "bookings", label: "My Appointment", icon: TrendingUp },
   ];
 

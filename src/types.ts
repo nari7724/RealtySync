@@ -37,6 +37,7 @@ export interface Appointment {
   id: string;
   clientId: string;
   clientName: string;
+  clientMobile?: string;
   agentId: string;
   agentName: string;
   appointmentType: AppointmentType;
@@ -132,3 +133,13 @@ export interface AuditLog {
   previousValue?: string;
   newValue?: string;
 }
+
+export interface Project {
+  id: string;
+  projectName: string;
+  developersName: string;
+  location: string;
+  minimumCut: string;
+  pricePerSqm: number;
+}
+

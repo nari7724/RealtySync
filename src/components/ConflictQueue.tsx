@@ -32,6 +32,11 @@ export function ConflictQueue({ onResolve, currentUser }: ConflictQueueProps) {
   const [loading, setLoading] = useState(true);
   const [selectedConflict, setSelectedConflict] = useState<DualEntry | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Load Conflicts
   const fetchConflicts = async () => {
@@ -61,34 +66,41 @@ export function ConflictQueue({ onResolve, currentUser }: ConflictQueueProps) {
 
   const handleResolveAction = async (action: "Mark Duplicate" | "Mark False Positive" | "Resolve", resolutionStatus: DualEntryStatus, winningClientIdx?: number) => {
     if (!selectedConflict) return;
-    setResolving(true);
 
-    try {
-      const res = await fetch(`/api/dual-entries/${selectedConflict.id}/resolve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          resolutionStatus,
-          winningClientIdx,
-          userContext: {
-            id: currentUser.id,
-            email: currentUser.email,
-            userName: `${currentUser.firstName} ${currentUser.lastName}`
+    setConfirmDialog({
+      title: "Resolve Overlapping Conflict",
+      message: `Are you sure you want to resolve this match as '${action}'?`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setResolving(true);
+        try {
+          const res = await fetch(`/api/dual-entries/${selectedConflict.id}/resolve`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action,
+              resolutionStatus,
+              winningClientIdx,
+              userContext: {
+                id: currentUser.id,
+                email: currentUser.email,
+                userName: `${currentUser.firstName} ${currentUser.lastName}`
+              }
+            }),
+          });
+
+          if (res.ok) {
+            setSelectedConflict(null);
+            fetchConflicts();
+            onResolve();
           }
-        }),
-      });
-
-      if (res.ok) {
-        setSelectedConflict(null);
-        fetchConflicts();
-        onResolve();
+        } catch (err) {
+          console.error("Error resolving dual entry:", err);
+        } finally {
+          setResolving(false);
+        }
       }
-    } catch (err) {
-      console.error("Error resolving dual entry:", err);
-    } finally {
-      setResolving(false);
-    }
+    });
   };
 
   // Difference highlight helper
@@ -441,6 +453,33 @@ export function ConflictQueue({ onResolve, currentUser }: ConflictQueueProps) {
           )}
         </div>
       </div>
+
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs z-[60] flex items-center justify-center p-4 animate-fade-in text-xs">
+          <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-150 dark:border-slate-800 shadow-2xl max-w-sm w-full overflow-hidden shrink-0 text-left">
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-slate-105 text-sm leading-snug">{confirmDialog.title}</h3>
+                <p className="text-slate-505 dark:text-slate-400 text-xs mt-2 leading-relaxed">{confirmDialog.message}</p>
+              </div>
+              <div className="flex justify-end gap-2.5 pt-1">
+                <button
+                  onClick={() => setConfirmDialog(null)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border dark:border-slate-800"
+                >
+                  No, Cancel
+                </button>
+                <button
+                  onClick={confirmDialog.onConfirm}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005e57] transition-all cursor-pointer shadow-sm animate-scale-up"
+                >
+                  Confirm & Action
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

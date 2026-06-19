@@ -38,6 +38,11 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -103,27 +108,34 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
 
   const handleToggleStatus = async (agent: Agent) => {
     const newStatus = agent.status === "Active" ? "Inactive" : "Active";
-    try {
-      const res = await fetch(`/api/agents/${agent.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          userContext: {
-            id: currentUser.id,
-            email: currentUser.email,
-            userName: `${currentUser.firstName} ${currentUser.lastName}`
-          }
-        }),
-      });
+    setConfirmDialog({
+      title: "Change Agent Account Status",
+      message: `Are you sure you want to change this agent's status to '${newStatus}'?`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          const res = await fetch(`/api/agents/${agent.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: newStatus,
+              userContext: {
+                id: currentUser.id,
+                email: currentUser.email,
+                userName: `${currentUser.firstName} ${currentUser.lastName}`
+              }
+            }),
+          });
 
-      if (res.ok) {
-        fetchAgents();
-        onAddLog();
+          if (res.ok) {
+            fetchAgents();
+            onAddLog();
+          }
+        } catch (err) {
+          console.error("Error toggling status:", err);
+        }
       }
-    } catch (err) {
-      console.error("Error toggling status:", err);
-    }
+    });
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,39 +149,56 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
       return;
     }
 
-    setSaving(true);
-    setErrorText("");
+    setConfirmDialog({
+      title: editingAgent ? "Update Agent Profile" : "Register Agent Profile",
+      message: `Are you sure you want to ${editingAgent ? "update/save existing agent" : "save and register new agent"} details?`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setSaving(true);
+        setErrorText("");
 
-    try {
-      const endpoint = editingAgent ? `/api/agents/${editingAgent.id}` : "/api/agents";
-      const method = editingAgent ? "PUT" : "POST";
+        try {
+          const endpoint = editingAgent ? `/api/agents/${editingAgent.id}` : "/api/agents";
+          const method = editingAgent ? "PUT" : "POST";
 
-      const res = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          userContext: {
-            id: currentUser.id,
-            email: currentUser.email,
-            userName: `${currentUser.firstName} ${currentUser.lastName}`
+          const res = await fetch(endpoint, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...formData,
+              userContext: {
+                id: currentUser.id,
+                email: currentUser.email,
+                userName: `${currentUser.firstName} ${currentUser.lastName}`
+              }
+            }),
+          });
+
+          if (!res.ok) {
+            const errObj = await res.json();
+            throw new Error(errObj.error || "Save operation failed.");
           }
-        }),
-      });
 
-      if (!res.ok) {
-        const errObj = await res.json();
-        throw new Error(errObj.error || "Save operation failed.");
+          setShowModal(false);
+          setEditingAgent(null);
+          setFormData({
+            firstName: "",
+            middleName: "",
+            lastName: "",
+            email: "",
+            mobileNumber: "",
+            prcLicenseNumber: "",
+          });
+          setErrorText("");
+          fetchAgents();
+          onAddLog();
+        } catch (err: any) {
+          setErrorText(err.message || "An error occurred while saving the agent profile.");
+        } finally {
+          setSaving(false);
+        }
       }
-
-      setShowModal(false);
-      fetchAgents();
-      onAddLog();
-    } catch (err: any) {
-      setErrorText(err.message || "An error occurred.");
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
@@ -453,6 +482,33 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs z-[60] flex items-center justify-center p-4 animate-fade-in text-xs">
+          <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-150 dark:border-slate-800 shadow-2xl max-w-sm w-full overflow-hidden shrink-0 text-left">
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-slate-105 text-sm leading-snug">{confirmDialog.title}</h3>
+                <p className="text-slate-505 dark:text-slate-400 text-xs mt-2 leading-relaxed">{confirmDialog.message}</p>
+              </div>
+              <div className="flex justify-end gap-2.5 pt-1">
+                <button
+                  onClick={() => setConfirmDialog(null)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border dark:border-slate-800"
+                >
+                  No, Cancel
+                </button>
+                <button
+                  onClick={confirmDialog.onConfirm}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005e57] transition-all cursor-pointer shadow-sm animate-scale-up"
+                >
+                  Confirm & Action
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

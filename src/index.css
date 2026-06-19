@@ -16,3 +16,55 @@
     transform: translateY(0);
   }
 }
+
+@media print {
+  /* Hide standard interactive page elements on raw browser prints */
+  aside,
+  #sidebar-container,
+  #sidebar-nav,
+  .no-print,
+  button,
+  select,
+  form,
+  input,
+  textarea {
+    display: none !important;
+  }
+
+  /* Make document full-width and remove screen paddings */
+  body, html {
+    background: white !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  main, #root, #main-admin-layout {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* Force print full width table */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 10px !important;
+    font-size: 11px !important;
+    color: #000 !important;
+  }
+
+  th {
+    background-color: #f8fafc !important;
+    font-weight: bold !important;
+  }
+}

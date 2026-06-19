@@ -37,7 +37,8 @@ import {
   Bookmark,
   FileCheck,
   MessageSquare,
-  Calendar
+  Calendar,
+  Building2
 } from "lucide-react";
 
 import { User, UserRole, Agent, Notification } from "./types.ts";
@@ -51,6 +52,8 @@ import { ClientMasterList } from "./components/ClientMasterList.tsx";
 import { BookingList } from "./components/BookingList.tsx";
 import { DashboardCharts } from "./components/DashboardCharts.tsx";
 import { RecentActivity } from "./components/RecentActivity.tsx";
+import { MyProjects } from "./components/MyProjects.tsx";
+import { AppointmentDetailModal } from "./components/AppointmentDetailModal.tsx";
 
 function Counter({ value }: { value: number }) {
   const [count, setCount] = useState(0);
@@ -166,6 +169,10 @@ export default function App() {
 
   // Selected earliest booking details modal
   const [selectedEarliestBooking, setSelectedEarliestBooking] = useState<any | null>(null);
+  const [isEditingEarliest, setIsEditingEarliest] = useState(false);
+  const [earliestEditForm, setEarliestEditForm] = useState({ appointmentTime: "", location: "" });
+  const [earliestSaving, setEarliestSaving] = useState(false);
+  const [earliestError, setEarliestError] = useState("");
 
   const [authEmail, setAuthEmail] = useState("admin@realtysync.com");
   const [authRole, setAuthRole] = useState<UserRole>(UserRole.ADMIN);
@@ -176,6 +183,8 @@ export default function App() {
 
   // General App states
   const [currentTab, setCurrentTab] = useState("dashboard");
+  const [autoOpenAddClient, setAutoOpenAddClient] = useState(false);
+  const [showEarliestConfirm, setShowEarliestConfirm] = useState(false);
   const [agentsList, setAgentsList] = useState<Agent[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -467,6 +476,63 @@ export default function App() {
 
   const forceRefresh = () => {
     setRefreshStamp(prev => prev + 1);
+  };
+
+  const handleSaveEarliestEdit = async () => {
+    if (!selectedEarliestBooking) return;
+    if (!earliestEditForm.appointmentTime) {
+      setEarliestError("Please select a valid appointment time.");
+      return;
+    }
+    if (!earliestEditForm.location.trim()) {
+      setEarliestError("Please select/enter a valid location.");
+      return;
+    }
+
+    setShowEarliestConfirm(true);
+  };
+
+  const handleConfirmSaveEarliest = async () => {
+    if (!currentUser || !selectedEarliestBooking) return;
+    setShowEarliestConfirm(false);
+    setEarliestSaving(true);
+    setEarliestError("");
+    try {
+      const combinedDateTime = `${selectedEarliestBooking.appointmentDate}T${earliestEditForm.appointmentTime}`;
+      const res = await fetch(`/api/bookings/${selectedEarliestBooking.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointmentTime: earliestEditForm.appointmentTime,
+          dateTime: combinedDateTime,
+          location: earliestEditForm.location,
+          userContext: {
+            id: currentUser.id,
+            userName: `${currentUser.firstName} ${currentUser.lastName}`,
+            role: currentUser.role
+          }
+        })
+      });
+
+      if (!res.ok) {
+        const errObj = await res.json();
+        throw new Error(errObj.error || "Failed to update appointment.");
+      }
+
+      const updatedBooking = {
+        ...selectedEarliestBooking,
+        appointmentTime: earliestEditForm.appointmentTime,
+        dateTime: combinedDateTime,
+        location: earliestEditForm.location,
+      };
+      setSelectedEarliestBooking(updatedBooking);
+      setIsEditingEarliest(false);
+      forceRefresh();
+    } catch (err: any) {
+      setEarliestError(err.message || "An unexpected error occurred while saving.");
+    } finally {
+      setEarliestSaving(false);
+    }
   };
 
   const unreadNotifCount = notifications.filter(n => !n.read).length;
@@ -833,11 +899,21 @@ export default function App() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 dark:divide-slate-850/65">
-                              {earliestBookings.map((b) => (
-                                <tr key={b.id} className="text-xs text-slate-705 dark:text-slate-300 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                              {earliestBookings.map((b, index) => (
+                                <tr 
+                                  key={b.id} 
+                                  className={`text-xs text-slate-705 dark:text-slate-300 ${
+                                    index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/40 dark:bg-slate-950/20"
+                                  } hover:bg-slate-50 dark:hover:bg-slate-805/65 hover:scale-[1.01] hover:shadow-2xs transition-all duration-200 ease-in-out origin-left transform cursor-default`}
+                                >
                                   <td className="py-3 px-3 whitespace-nowrap font-medium">
                                     <button 
-                                      onClick={() => setSelectedEarliestBooking(b)}
+                                      onClick={() => {
+                                        setSelectedEarliestBooking(b);
+                                        setIsEditingEarliest(false);
+                                        setEarliestEditForm({ appointmentTime: b.appointmentTime || "", location: b.location || "" });
+                                        setEarliestError("");
+                                      }}
                                       className="font-mono font-extrabold text-teal-650 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 hover:underline bg-teal-50 dark:bg-teal-950/40 border border-teal-100/70 dark:border-teal-900/40 px-2.5 py-1 rounded cursor-pointer transition-colors text-left"
                                       title="Click to view full appointment details"
                                     >
@@ -875,6 +951,24 @@ export default function App() {
                             </tbody>
                           </table>
                         </div>
+
+                        {/* Status Legend Indicator */}
+                        <div className="bg-slate-50/40 dark:bg-slate-950/30 rounded-lg p-3 border border-slate-100 dark:border-slate-800/60 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-slate-550 dark:text-slate-400 font-medium">
+                          <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[9px]">Legend Indicators:</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-0.5 bg-red-100 border border-red-200 dark:border-red-900 dark:bg-red-950/85 text-red-700 dark:text-red-350 font-extrabold px-1.5 py-0.5 rounded text-[8.5px] scale-95 select-none shrink-0 tracking-wider">
+                              DUE SOON
+                            </span>
+                            <span>Occurring within standard 30-minute grace window.</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-extrabold text-teal-650 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/40 px-1.5 py-0.5 rounded text-[8.5px] scale-95 select-none shrink-0 tracking-wider">
+                              APT-ID
+                            </span>
+                            <span>Click Booking ID to trigger full schedule details card.</span>
+                          </div>
+                        </div>
+
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-805/80">
                           <button 
                             onClick={() => setCurrentTab("bookings")}
@@ -887,7 +981,7 @@ export default function App() {
                     ) : (
                       <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100/60 dark:border-slate-800/60 rounded-xl p-6 text-center">
                         <Calendar className="w-8 h-8 text-slate-400 dark:text-slate-650 mx-auto mb-2 opacity-80" />
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">No appointments scheduled for Cebu or NCR developments today.</p>
+                        <p className="text-xs text-slate-530 dark:text-slate-400 font-bold">No scheduled appointments</p>
                         <div className="pt-3 border-t border-slate-100/20 mt-3">
                           <button 
                             onClick={() => setCurrentTab("bookings")}
@@ -899,111 +993,6 @@ export default function App() {
                       </div>
                     )}
                   </div>
-
-                  {/* 7-Day Performance Trend Sparkline Card */}
-                  {!isAdmin && completedBookingsTrend.length > 0 && (
-                    <div className="bg-white border border-slate-100 rounded-xl shadow-sm p-6 space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="p-2 rounded bg-teal-50 text-teal-600">
-                            <TrendingUp className="w-4 h-4 text-teal-600" />
-                          </div>
-                          <div className="text-left">
-                            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                              7-Day Performance Trend
-                            </h2>
-                            <p className="text-xs text-slate-500 mt-0.5">Completed site visits, document submittals, and client allocations.</p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-mono bg-teal-50 border border-teal-100 font-bold text-teal-700 px-2 py-0.5 rounded uppercase tracking-wider">
-                          7D Productivity Indicator
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col lg:flex-row items-center gap-6 pt-2">
-                        {/* Summary Metrics */}
-                        <div className="w-full lg:w-1/3 grid grid-cols-2 gap-3 pb-2 lg:pb-0 font-medium">
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-105">
-                            <div className="text-[9px] text-slate-455 font-bold uppercase tracking-wider">Avg Completed</div>
-                            <div className="text-lg font-extrabold text-slate-800 mt-1">
-                              {(completedBookingsTrend.reduce((acc, t) => acc + t.count, 0) / 7).toFixed(1)} <span className="text-xs text-slate-500 font-medium">Done / day</span>
-                            </div>
-                          </div>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-105">
-                            <div className="text-[9px] text-slate-455 font-bold uppercase tracking-wider">Peak Volume</div>
-                            <div className="text-lg font-extrabold text-teal-600 mt-1">
-                              {Math.max(...completedBookingsTrend.map(t => t.count))} <span className="text-xs text-slate-500 font-medium">Max</span>
-                            </div>
-                          </div>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-105 col-span-2">
-                            <div className="text-[9px] text-slate-455 font-bold uppercase tracking-wider">Total Completed</div>
-                            <div className="text-lg font-extrabold text-slate-900 mt-1 flex justify-between items-center">
-                              <span>{completedBookingsTrend.reduce((acc, t) => acc + t.count, 0)} files</span>
-                              <span className="text-[10px] bg-slate-100 stroke-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold">L7D Trend</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Interactive SVG Sparkline */}
-                        <div className="flex-1 w-full bg-slate-50/20 rounded-xl p-4 border border-slate-100/80 relative">
-                          <svg viewBox="0 0 500 110" className="w-full h-24 overflow-visible">
-                            <defs>
-                              <linearGradient id="sparkline-area-grad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#0d9488" stopOpacity="0.18" />
-                                <stop offset="100%" stopColor="#0d9488" stopOpacity="0.0" />
-                              </linearGradient>
-                            </defs>
-
-                            {/* Guidelines */}
-                            <line x1="30" y1="15" x2="470" y2="15" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3,3" />
-                            <line x1="30" y1="50" x2="470" y2="50" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3,3" />
-                            <line x1="30" y1="85" x2="470" y2="85" stroke="#e2e8f0" strokeWidth="1" />
-
-                            {(() => {
-                              const maxVal = Math.max(...completedBookingsTrend.map(t => t.count), 1);
-                              const width = 500;
-                              const height = 110;
-                              const paddingX = 40;
-                              const paddingY = 20;
-
-                              const points = completedBookingsTrend.map((t, idx) => {
-                                const x = paddingX + idx * ((width - paddingX * 2) / 6);
-                                const scaleValue = maxVal === 0 ? 1 : maxVal;
-                                const y = height - paddingY - (t.count / scaleValue) * (height - paddingY * 2 - 10);
-                                return { x, y, ...t };
-                              });
-
-                              const pathD = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-                              const areaD = `${pathD} L ${points[points.length - 1].x} ${height - paddingY} L ${points[0].x} ${height - paddingY} Z`;
-
-                              return (
-                                <>
-                                  <path d={areaD} fill="url(#sparkline-area-grad)" />
-                                  <path d={pathD} fill="none" stroke="#0d9488" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-
-                                  {points.map((p, idx) => (
-                                    <g key={idx} className="group/node">
-                                      <circle cx={p.x} cy={p.y} r="5" fill="#ffffff" stroke="#0d9488" strokeWidth="2" className="shadow-sm" />
-                                      
-                                      {/* Counter Label */}
-                                      <text x={p.x} y={p.y - 12} textAnchor="middle" className="text-[10px] font-mono font-extrabold fill-slate-800" >
-                                        {p.count}
-                                      </text>
-
-                                      {/* Date Label */}
-                                      <text x={p.x} y="103" textAnchor="middle" className="text-[9px] font-mono font-bold fill-slate-400" >
-                                        {p.label}
-                                      </text>
-                                    </g>
-                                  ))}
-                                </>
-                              );
-                            })()}
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Real-time Agent Client Conflicts Alert Card (Client Details Conflicts) */}
                   {!isAdmin && (
@@ -1043,7 +1032,7 @@ export default function App() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100 font-medium">
-                                {agentConflicts.map((conf) => {
+                                {agentConflicts.map((conf, index) => {
                                   // Determine which agent is current user and which is opposing agent
                                   const isUserA = conf.agentIdA === currentUser.id;
                                   const otherAgentName = isUserA ? conf.agentNameB : conf.agentNameA;
@@ -1051,14 +1040,19 @@ export default function App() {
                                   const opposingDate = isUserA ? conf.dateB : conf.dateA;
                                   
                                   return (
-                                    <tr key={conf.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <tr 
+                                      key={conf.id} 
+                                      className={`${
+                                        index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/40 dark:bg-slate-950/20"
+                                      } hover:bg-slate-50/50 transition-colors`}
+                                    >
                                       <td className="py-2.5 px-3">
                                         <div className="font-bold text-slate-950">{conf.clientName}</div>
                                         <div className="text-[10px] text-slate-400 font-mono">ID: {isUserA ? conf.clientIdA : conf.clientIdB}</div>
                                       </td>
                                       <td className="py-2.5 px-3 text-slate-705">
                                         <div className="font-bold text-slate-800">{otherAgentName}</div>
-                                        <div className="text-[10px] text-slate-450 italic">Opposing broker claim</div>
+                                        <div className="text-[10px] text-slate-450 font-mono">Agent ID: {isUserA ? conf.agentIdB : conf.agentIdA}</div>
                                       </td>
                                       <td className="py-2.5 px-3 font-mono text-emerald-700 font-bold">
                                         {myDate}
@@ -1146,7 +1140,10 @@ export default function App() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => setCurrentTab("register")}
+                          onClick={() => {
+                            setAutoOpenAddClient(true);
+                            setCurrentTab("clients");
+                          }}
                           className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
                         >
                           <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
@@ -1161,6 +1158,111 @@ export default function App() {
                       )}
                     </div>
                   </div>
+
+                  {/* 7-Day Performance Trend Sparkline Card */}
+                  {!isAdmin && completedBookingsTrend.length > 0 && (
+                    <div className="bg-white border border-slate-100 rounded-xl shadow-sm p-6 space-y-4 font-sans font-medium tracking-tight text-gray-900">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 rounded bg-teal-50 text-teal-600">
+                            <TrendingUp className="w-4 h-4 text-teal-600" />
+                          </div>
+                          <div className="text-left">
+                            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                              7-Day Performance Trend
+                            </h2>
+                            <p className="text-xs text-slate-500 mt-0.5">Completed site visits, document submittals, and client allocations.</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono bg-teal-50 border border-teal-100 font-bold text-teal-700 px-2 py-0.5 rounded uppercase tracking-wider">
+                          7D Productivity Indicator
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col lg:flex-row items-center gap-6 pt-2">
+                        {/* Summary Metrics */}
+                        <div className="w-full lg:w-1/3 grid grid-cols-2 gap-3 pb-2 lg:pb-0 font-medium font-sans font-medium tracking-tight text-gray-900">
+                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-105">
+                            <div className="text-[9px] text-slate-455 font-bold uppercase tracking-wider">Avg Completed</div>
+                            <div className="text-lg font-extrabold text-slate-800 mt-1">
+                              {(completedBookingsTrend.reduce((acc, t) => acc + t.count, 0) / 7).toFixed(1)} <span className="text-xs text-slate-500 font-medium">Done / day</span>
+                            </div>
+                          </div>
+                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-105">
+                            <div className="text-[9px] text-slate-455 font-bold uppercase tracking-wider">Peak Volume</div>
+                            <div className="text-lg font-extrabold text-teal-600 mt-1">
+                              {Math.max(...completedBookingsTrend.map(t => t.count))} <span className="text-xs text-slate-500 font-medium">Max</span>
+                            </div>
+                          </div>
+                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-105 col-span-2">
+                            <div className="text-[9px] text-slate-455 font-bold uppercase tracking-wider">Total Completed</div>
+                            <div className="text-lg font-extrabold text-slate-900 mt-1 flex justify-between items-center">
+                              <span>{completedBookingsTrend.reduce((acc, t) => acc + t.count, 0)} files</span>
+                              <span className="text-[10px] bg-slate-100 stroke-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold">L7D Trend</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Interactive SVG Sparkline */}
+                        <div className="flex-1 w-full bg-slate-50/20 rounded-xl p-4 border border-slate-100/80 relative">
+                          <svg viewBox="0 0 500 110" className="w-full h-24 overflow-visible">
+                            <defs>
+                              <linearGradient id="sparkline-area-grad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#0d9488" stopOpacity="0.18" />
+                                <stop offset="100%" stopColor="#0d9488" stopOpacity="0.0" />
+                              </linearGradient>
+                            </defs>
+
+                            {/* Guidelines */}
+                            <line x1="30" y1="15" x2="470" y2="15" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3,3" />
+                            <line x1="30" y1="50" x2="470" y2="50" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3,3" />
+                            <line x1="30" y1="85" x2="470" y2="85" stroke="#e2e8f0" strokeWidth="1" />
+
+                            {(() => {
+                              const maxVal = Math.max(...completedBookingsTrend.map(t => t.count), 1);
+                              const width = 500;
+                              const height = 110;
+                              const paddingX = 40;
+                              const paddingY = 20;
+
+                              const points = completedBookingsTrend.map((t, idx) => {
+                                const x = paddingX + idx * ((width - paddingX * 2) / 6);
+                                const scaleValue = maxVal === 0 ? 1 : maxVal;
+                                const y = height - paddingY - (t.count / scaleValue) * (height - paddingY * 2 - 10);
+                                return { x, y, ...t };
+                              });
+
+                              const pathD = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                              const areaD = `${pathD} L ${points[points.length - 1].x} ${height - paddingY} L ${points[0].x} ${height - paddingY} Z`;
+
+                              return (
+                                <>
+                                  <path d={areaD} fill="url(#sparkline-area-grad)" />
+                                  <path d={pathD} fill="none" stroke="#0d9488" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+
+                                  {points.map((p, idx) => (
+                                    <g key={idx} className="group/node">
+                                      <circle cx={p.x} cy={p.y} r="5" fill="#ffffff" stroke="#0d9488" strokeWidth="2" className="shadow-sm" />
+                                      
+                                      {/* Counter Label */}
+                                      <text x={p.x} y={p.y - 12} textAnchor="middle" className="text-[10px] font-mono font-extrabold fill-slate-800" >
+                                        {p.count}
+                                      </text>
+
+                                      {/* Date Label */}
+                                      <text x={p.x} y="103" textAnchor="middle" className="text-[9px] font-mono font-bold fill-slate-400" >
+                                        {p.label}
+                                      </text>
+                                    </g>
+                                  ))}
+                                </>
+                              );
+                            })()}
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -1194,21 +1296,19 @@ export default function App() {
             <ClientMasterList 
               currentUser={currentUser} 
               agentsList={agentsList} 
-              onTriggerForm={() => setCurrentTab(isAdmin ? "clients" : "register")}
+              onTriggerForm={() => {}}
               triggerRefreshStamp={refreshStamp}
+              autoOpenForm={autoOpenAddClient}
+              setAutoOpenForm={setAutoOpenAddClient}
             />
           )}
 
-          {currentTab === "register" && !isAdmin && (
-            <ClientForm 
-              onSuccess={() => {
-                forceRefresh();
-                setCurrentTab("clients");
-              }} 
-              onCancel={() => setCurrentTab("dashboard")} 
-              agentsList={agentsList} 
-              currentUser={currentUser} 
-            />
+          {currentTab === "bookings" && (
+            <BookingList currentUser={currentUser} triggerRefreshStamp={refreshStamp} onAddLog={forceRefresh} />
+          )}
+
+          {currentTab === "projects" && currentUser && (
+            <MyProjects currentUser={currentUser} />
           )}
 
           {currentTab === "conflicts" && isAdmin && (
@@ -1221,10 +1321,6 @@ export default function App() {
 
           {currentTab === "reports" && isAdmin && (
             <ReportsPanel />
-          )}
-
-          {currentTab === "bookings" && (
-            <BookingList currentUser={currentUser} triggerRefreshStamp={refreshStamp} onAddLog={forceRefresh} />
           )}
 
         </div>
@@ -1306,120 +1402,294 @@ export default function App() {
 
       {/* EARLIEST BOOKING DETAILS MODAL */}
       {selectedEarliestBooking && (
+        <AppointmentDetailModal
+          booking={selectedEarliestBooking}
+          currentUser={currentUser}
+          onClose={() => {
+            setSelectedEarliestBooking(null);
+          }}
+          onRefresh={() => {
+            forceRefresh();
+          }}
+        />
+      )}
+
+      {/* RENDER-BYPASSED RETIRED MODAL CODE */}
+      {false && selectedEarliestBooking && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in text-xs" id="earliest-detail-overlay">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
+          <motion.div 
+            className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden shrink-0"
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+          >
             {/* Header */}
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-teal-700 dark:text-teal-400" />
                 <div className="text-left">
-                  <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">Appointment Details</h3>
+                  <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
+                    {isEditingEarliest ? "Edit Appointment Registry" : "Appointment Details"}
+                  </h3>
                   <p className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">Reference ID: {selectedEarliestBooking.id}</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedEarliestBooking(null)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer">
+              <button 
+                onClick={() => {
+                  setSelectedEarliestBooking(null);
+                  setIsEditingEarliest(false);
+                  setEarliestError("");
+                }} 
+                className="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Body */}
             <div className="p-6 space-y-4 text-slate-605 dark:text-slate-300 text-left">
-              {/* Client ID / Contact */}
-              <div className="bg-slate-50 dark:bg-slate-950/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
-                <div className="text-[9px] uppercase font-extrabold text-teal-600 dark:text-teal-400 tracking-wider flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5" /> Client Profile Details
+              {earliestError && (
+                <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-350 p-3 rounded-lg font-bold text-[11px]">
+                  {earliestError}
                 </div>
-                <div className="space-y-1">
-                  <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">{selectedEarliestBooking.clientName}</div>
-                  <div>Client ID: <span className="font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-200/60 dark:bg-slate-850 px-1.5 py-0.5 rounded">{selectedEarliestBooking.clientId}</span></div>
-                  {selectedEarliestBooking.clientMobile && (
-                    <div>Mobile Contact: <span className="font-mono font-semibold text-slate-850 dark:text-slate-200">{selectedEarliestBooking.clientMobile}</span></div>
-                  )}
-                </div>
-              </div>
+              )}
 
-              {/* Date & Time */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50/50 dark:bg-slate-950/30 p-3.5 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
-                  <div className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-slate-400" /> Date
-                  </div>
-                  <div className="font-extrabold text-slate-800 dark:text-slate-200 text-xs font-mono">{selectedEarliestBooking.appointmentDate}</div>
-                </div>
-                <div className="bg-slate-50/50 dark:bg-slate-950/30 p-3.5 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
-                  <div className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-slate-400" /> Scheduled Time
-                  </div>
-                  <div className="font-extrabold text-slate-800 dark:text-slate-200 text-xs font-mono">{formatTimeWithAMPM(selectedEarliestBooking.appointmentTime)}</div>
-                </div>
-              </div>
-
-              {/* Status and Type */}
-              <div className="space-y-2.5">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">
-                    Appointment Type:
-                  </span>
-                  <span className="font-extrabold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-2.5 py-1 rounded text-xs select-none">
-                    {selectedEarliestBooking.appointmentType}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">
-                    Current Status:
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full text-xs font-bold border bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-900">
-                    {selectedEarliestBooking.status}
-                  </span>
-                </div>
-
-                {selectedEarliestBooking.location && (
-                  <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                    <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> Site Project Location:
-                    </span>
-                    <div className="font-extrabold text-slate-850 dark:text-slate-200 pl-4.5 text-xs">
-                      {selectedEarliestBooking.location}
+              {isEditingEarliest ? (
+                <div className="space-y-4">
+                  {/* Readonly profile indicator */}
+                  <div className="bg-slate-50 dark:bg-slate-950/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
+                    <div className="text-[9px] uppercase font-extrabold text-slate-400 tracking-wider flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" /> Client Registry details
                     </div>
-                    {REALTY_PROJECT_ADDRESSES[selectedEarliestBooking.location] && (
-                      <div className="pl-4.5 text-[10px] text-slate-450 dark:text-slate-400 font-medium italic">
-                        Complete Address: {REALTY_PROJECT_ADDRESSES[selectedEarliestBooking.location]}
+                    <div>
+                      <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">{selectedEarliestBooking.clientName}</div>
+                      <div className="mt-0.5">Client ID: <span className="font-mono font-bold text-slate-600 dark:text-slate-400">{selectedEarliestBooking.clientId}</span></div>
+                    </div>
+                  </div>
+
+                  {/* Editable Fields form */}
+                  <div className="bg-slate-50/55 dark:bg-slate-950/20 p-4 rounded-xl border border-slate-100 dark:border-slate-800 p-4.5 space-y-3.5">
+                    <div className="text-[10px] uppercase font-extrabold text-teal-600 dark:text-teal-400 tracking-wider">
+                      Appointment Edit Form
+                    </div>
+
+                    {/* Booking Time */}
+                    <div className="space-y-1">
+                      <label className="block text-slate-500 dark:text-slate-400 font-bold text-[9px] uppercase tracking-wider">
+                        Booking Time
+                      </label>
+                      <input
+                        type="time"
+                        value={earliestEditForm.appointmentTime}
+                        onChange={(e) => setEarliestEditForm({ ...earliestEditForm, appointmentTime: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 focus:border-teal-500 focus:outline-none font-mono text-xs text-slate-800 dark:text-slate-100"
+                        required
+                      />
+                    </div>
+
+                    {/* Site Project Location Selector */}
+                    <div className="space-y-1">
+                      <label className="block text-slate-500 dark:text-slate-400 font-bold text-[9px] uppercase tracking-wider">
+                        Project Site Location
+                      </label>
+                      <select
+                        value={Object.keys(REALTY_PROJECT_ADDRESSES).includes(earliestEditForm.location) ? earliestEditForm.location : "Custom"}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val !== "Custom") {
+                            setEarliestEditForm({ ...earliestEditForm, location: val });
+                          } else {
+                            setEarliestEditForm({ ...earliestEditForm, location: "" });
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 focus:border-teal-500 focus:outline-none text-xs text-slate-800 dark:text-slate-100"
+                      >
+                        {Object.keys(REALTY_PROJECT_ADDRESSES).map((locKey) => (
+                          <option key={locKey} value={locKey}>{locKey}</option>
+                        ))}
+                        <option value="Custom">Custom / Other Address...</option>
+                      </select>
+                      
+                      {(!Object.keys(REALTY_PROJECT_ADDRESSES).includes(earliestEditForm.location) || earliestEditForm.location === "") && (
+                        <input
+                          type="text"
+                          value={earliestEditForm.location}
+                          onChange={(e) => setEarliestEditForm({ ...earliestEditForm, location: e.target.value })}
+                          placeholder="Enter custom location/address"
+                          className="w-full mt-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-705 bg-white dark:bg-slate-950 focus:border-teal-500 focus:outline-none text-xs text-slate-800 dark:text-slate-100"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Client ID / Contact */}
+                  <div className="bg-slate-50 dark:bg-slate-950/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
+                    <div className="text-[9px] uppercase font-extrabold text-teal-600 dark:text-teal-400 tracking-wider flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" /> Client Profile Details
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">{selectedEarliestBooking.clientName}</div>
+                      <div>Client ID: <span className="font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-200/60 dark:bg-slate-850 px-1.5 py-0.5 rounded">{selectedEarliestBooking.clientId}</span></div>
+                      {selectedEarliestBooking.clientMobile && (
+                        <div>Mobile Contact: <span className="font-mono font-semibold text-slate-850 dark:text-slate-200">{selectedEarliestBooking.clientMobile}</span></div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Date & Time */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-slate-50/50 dark:bg-slate-950/30 p-3.5 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
+                      <div className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-400" /> Date
+                      </div>
+                      <div className="font-extrabold text-slate-800 dark:text-slate-200 text-xs font-mono">{selectedEarliestBooking.appointmentDate}</div>
+                    </div>
+                    <div className="bg-slate-50/50 dark:bg-slate-950/30 p-3.5 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
+                      <div className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-400" /> Scheduled Time
+                      </div>
+                      <div className="font-extrabold text-slate-800 dark:text-slate-200 text-xs font-mono">{formatTimeWithAMPM(selectedEarliestBooking.appointmentTime)}</div>
+                    </div>
+                  </div>
+
+                  {/* Status and Type */}
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">
+                        Appointment Type:
+                      </span>
+                      <span className="font-extrabold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-2.5 py-1 rounded text-xs select-none">
+                        {selectedEarliestBooking.appointmentType}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">
+                        Current Status:
+                      </span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold border bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-900">
+                        {selectedEarliestBooking.status}
+                      </span>
+                    </div>
+
+                    {selectedEarliestBooking.location && (
+                      <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                        <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" /> Site Project Location:
+                        </span>
+                        <div className="font-extrabold text-slate-850 dark:text-slate-200 pl-4.5 text-xs">
+                          {selectedEarliestBooking.location}
+                        </div>
+                        {REALTY_PROJECT_ADDRESSES[selectedEarliestBooking.location] && (
+                          <div className="pl-4.5 text-[10px] text-slate-455 dark:text-slate-450 font-medium italic">
+                            Complete Address: {REALTY_PROJECT_ADDRESSES[selectedEarliestBooking.location]}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedEarliestBooking.notes && (
+                      <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                        <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">
+                          Remarks / Notes:
+                        </span>
+                        <p className="text-slate-600 dark:text-slate-350 bg-slate-50 dark:bg-slate-950/30 p-2.5 rounded border dark:border-slate-800 italic font-medium">
+                          "{selectedEarliestBooking.notes}"
+                        </p>
                       </div>
                     )}
                   </div>
-                )}
-
-                {selectedEarliestBooking.notes && (
-                  <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                    <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider">
-                      Remarks / Notes:
-                    </span>
-                    <p className="text-slate-600 dark:text-slate-350 bg-slate-50 dark:bg-slate-950/30 p-2.5 rounded border dark:border-slate-800 italic font-medium">
-                      "{selectedEarliestBooking.notes}"
-                    </p>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
 
             {/* Actions Footer */}
             <div className="flex justify-end items-center gap-2.5 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950">
-              <button 
-                onClick={() => {
-                  setSelectedEarliestBooking(null);
-                  setCurrentTab("bookings");
-                }}
-                className="px-4 py-2 rounded-lg text-xs font-bold text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-350 hover:underline bg-slate-100 dark:bg-slate-805 mr-auto transition-all cursor-pointer"
-              >
-                Go to Bookings Registry
-              </button>
-              <button 
-                onClick={() => setSelectedEarliestBooking(null)}
-                className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-slate-700 hover:bg-slate-800 border border-transparent transition-all cursor-pointer"
-              >
-                Close
-              </button>
+              {isEditingEarliest ? (
+                <>
+                  <button 
+                    onClick={() => {
+                      setIsEditingEarliest(false);
+                      setEarliestError("");
+                    }}
+                    className="px-4 py-2 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer mr-auto"
+                    disabled={earliestSaving}
+                  >
+                    Cancel Edit
+                  </button>
+                  <button 
+                    onClick={handleSaveEarliestEdit}
+                    className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005e57] transition-all cursor-pointer inline-flex items-center gap-2 shadow-sm"
+                    disabled={earliestSaving}
+                  >
+                    {earliestSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => {
+                      setSelectedEarliestBooking(null);
+                      setCurrentTab("bookings");
+                    }}
+                    className="px-4 py-2 rounded-lg text-xs font-bold text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-350 hover:underline bg-slate-100 dark:bg-slate-805 mr-auto transition-all cursor-pointer"
+                  >
+                    Go to Bookings Registry
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setIsEditingEarliest(true);
+                      setEarliestEditForm({
+                        appointmentTime: selectedEarliestBooking.appointmentTime || "",
+                        location: selectedEarliestBooking.location || ""
+                      });
+                      setEarliestError("");
+                    }}
+                    className="px-4 py-2 rounded-lg text-xs font-bold font-sans text-teal-700 bg-teal-50 hover:bg-teal-100 hover:text-teal-800 border border-teal-200 transition-all cursor-pointer"
+                  >
+                    Edit Appointment
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setSelectedEarliestBooking(null);
+                      setIsEditingEarliest(false);
+                      setEarliestError("");
+                    }}
+                    className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-slate-700 hover:bg-slate-800 border border-transparent transition-all cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {showEarliestConfirm && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in text-xs">
+          <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-150 dark:border-slate-800 shadow-2xl max-w-sm w-full overflow-hidden shrink-0 text-left">
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-slate-105 text-sm leading-snug">Confirm Modification</h3>
+                <p className="text-slate-505 dark:text-slate-400 text-xs mt-2 leading-relaxed">Are you sure you want to save and update this appointment's details?</p>
+              </div>
+              <div className="flex justify-end gap-2.5 pt-1">
+                <button
+                  onClick={() => setShowEarliestConfirm(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-605 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border dark:border-slate-800"
+                >
+                  No, Cancel
+                </button>
+                <button
+                  onClick={handleConfirmSaveEarliest}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005e57] transition-all cursor-pointer shadow-sm animate-scale-up"
+                >
+                  Confirm & Save
+                </button>
+              </div>
             </div>
           </div>
         </div>

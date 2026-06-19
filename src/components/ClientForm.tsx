@@ -163,13 +163,6 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
           </h2>
           <p className="text-sm text-slate-500">Every submission is instantly screened through our duplicate risk checks.</p>
         </div>
-        <button 
-          onClick={onCancel}
-          className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-50 rounded-lg transition-colors"
-          type="button"
-        >
-          <X className="w-5 h-5" />
-        </button>
       </div>
 
       {errorObj && (
@@ -327,18 +320,10 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
 
         <div className="flex justify-end gap-3 pt-2">
           <button
-            type="button"
-            onClick={onCancel}
-            id="btn-client-cancel"
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
-          >
-            Go Back
-          </button>
-          <button
             type="submit"
             id="btn-client-save"
             disabled={checking || loading}
-            className="px-5 py-2 text-sm font-medium text-white bg-teal-700 hover:bg-teal-800 disabled:bg-teal-400 rounded-lg shadow-sm hover:shadow transition-all inline-flex items-center gap-1.5 cursor-pointer"
+            className="px-5 py-2 text-sm font-bold text-white bg-[#00786f] hover:bg-[#005e57] disabled:bg-[#00786f]/50 rounded-lg shadow-sm hover:shadow transition-all inline-flex items-center gap-1.5 cursor-pointer"
           >
             {checking ? (
               <>
@@ -351,8 +336,16 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
                 Registering...
               </>
             ) : (
-              "Save Client"
+              "Save"
             )}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            id="btn-client-cancel"
+            className="px-4 py-2 text-sm font-bold text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition-all border border-transparent shadow-sm cursor-pointer"
+          >
+            Cancel
           </button>
         </div>
       </form>
@@ -457,7 +450,7 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
                 onClick={submitClient}
                 disabled={loading}
                 className={`px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all inline-flex items-center gap-1.5 shadow-sm hover:shadow cursor-pointer ${
-                  dupResult?.isDuplicate ? "bg-amber-600 hover:bg-amber-700" : "bg-teal-700 hover:bg-teal-850"
+                  dupResult?.isDuplicate ? "bg-amber-600 hover:bg-amber-700" : "bg-[#00786f] hover:bg-[#005e57]"
                 }`}
               >
                 {loading ? (

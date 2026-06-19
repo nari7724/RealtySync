@@ -17,9 +17,11 @@ import {
   MapPin,
   FileText,
   Clock,
-  Briefcase
+  Briefcase,
+  Printer
 } from "lucide-react";
 import { Booking, BookingStatus, UserRole } from "../types.ts";
+import { AppointmentDetailModal } from "./AppointmentDetailModal.tsx";
 
 interface BookingListProps {
   currentUser: { id: string; role: UserRole; firstName: string; lastName: string };
@@ -106,12 +108,18 @@ export function formatTimeWithAMPM(timeStr: string | undefined): string {
 export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: BookingListProps) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [printViewActive, setPrintViewActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Open"); // Default status filter is Open
 
   const [savingId, setSavingId] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Load clients list to dynamically resolve rich Client Information
   const fetchClients = async () => {
@@ -165,37 +173,44 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
   }, [search, statusFilter, triggerRefreshStamp]);
 
   const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) => {
-    setSavingId(bookingId);
-    try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          userContext: {
-            id: currentUser.id,
-            userName: `${currentUser.firstName} ${currentUser.lastName}`,
-            role: currentUser.role
-          }
-        }),
-      });
-
-      if (res.ok) {
-        // If selected booking is open, update its local instance too
-        if (selectedBooking && selectedBooking.id === bookingId) {
-          setSelectedBooking({
-            ...selectedBooking,
-            status: newStatus
+    setConfirmDialog({
+      title: "Confirm Status Change",
+      message: `Are you sure you want to update this appointment status to '${newStatus}'?`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setSavingId(bookingId);
+        try {
+          const res = await fetch(`/api/bookings/${bookingId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: newStatus,
+              userContext: {
+                id: currentUser.id,
+                userName: `${currentUser.firstName} ${currentUser.lastName}`,
+                role: currentUser.role
+              }
+            }),
           });
+
+          if (res.ok) {
+            // If selected booking is open, update its local instance too
+            if (selectedBooking && selectedBooking.id === bookingId) {
+              setSelectedBooking({
+                ...selectedBooking,
+                status: newStatus
+              });
+            }
+            fetchBookings();
+            onAddLog();
+          }
+        } catch (err) {
+          console.error("Error updating booking status:", err);
+        } finally {
+          setSavingId(null);
         }
-        fetchBookings();
-        onAddLog();
       }
-    } catch (err) {
-      console.error("Error updating booking status:", err);
-    } finally {
-      setSavingId(null);
-    }
+    });
   };
 
   const getStatusStyle = (status: BookingStatus) => {
@@ -213,12 +228,24 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
   return (
     <div className="space-y-6" id="bookings-module">
       {/* Title */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
-          <TrendingUp className="w-6 h-6 text-teal-700 dark:text-teal-400 font-bold animate-pulse" />
-          {currentUser.role === UserRole.ADMIN ? "Global Office Bookings Registry" : "My Bookings Pipeline"}
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Track reservation pipelines, property assignments, downpayment reservation statuses, and agent credits.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
+            <TrendingUp className="w-6 h-6 text-teal-700 dark:text-teal-400 font-bold animate-pulse" />
+            {currentUser.role === UserRole.ADMIN ? "Global Office Bookings Registry" : "My Bookings Pipeline"}
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Track reservation pipelines, property assignments, downpayment reservation statuses, and agent credits.</p>
+        </div>
+        <div className="shrink-0">
+          <button
+            onClick={() => setPrintViewActive(true)}
+            id="print-schedule-button"
+            className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer flex items-center justify-center gap-2 transition-all"
+          >
+            <Printer className="w-4 h-4" />
+            Print Today's Schedule
+          </button>
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -262,7 +289,7 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
           <div className="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-teal-600 mb-3 border border-slate-100 dark:border-slate-805 mx-auto">
             <ClipboardList className="w-6 h-6" />
           </div>
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">No Reservations Lodged</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">No scheduled appointments</p>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Active filters returned blank logs. Select "Open" to review active booking pipeline items.</p>
         </div>
       ) : (
@@ -280,8 +307,13 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100/70 dark:divide-slate-800/80 text-sm">
-                {bookings.map((booking) => (
-                  <tr key={booking.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/40 transition-colors">
+                {bookings.map((booking, index) => (
+                  <tr 
+                    key={booking.id} 
+                    className={`${
+                      index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/30 dark:bg-slate-950/20"
+                    } hover:bg-slate-50/50 dark:hover:bg-slate-950/40 transition-colors`}
+                  >
                     {/* Column 1: Appointment ID (Clickable) */}
                     <td className="px-6 py-4 whitespace-nowrap text-xs font-mono font-extrabold text-teal-700 dark:text-teal-400 bg-slate-50/10">
                       <button 
@@ -364,7 +396,7 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
                           <button
                             onClick={() => handleUpdateStatus(booking.id, "Done" as any)}
                             disabled={savingId === booking.id}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition-all cursor-pointer inline-flex items-center gap-0.5 disabled:opacity-50"
+                            className="bg-[#00786f] hover:bg-[#005a53] text-white font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition-all cursor-pointer inline-flex items-center gap-0.5 disabled:opacity-50"
                             title="Mark as Done"
                           >
                             <CheckCircle className="w-3 h-3" />
@@ -393,165 +425,134 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
           </div>
         </div>
       )}
-       {/* DETAIL MODAL WITH DONE & CANCELLED ACTIONS */}
       {selectedBooking && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="booking-detail-overlay">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
-            {/* Header */}
-            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-teal-700 dark:text-teal-400" />
-                <div>
-                  <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">Appointment Details</h3>
-                  <p className="text-[10px] font-mono font-bold text-slate-455 dark:text-slate-400 uppercase tracking-widest mt-0.5">Reference ID: {selectedBooking.id}</p>
-                </div>
+        <AppointmentDetailModal
+          booking={selectedBooking}
+          currentUser={currentUser}
+          onClose={() => setSelectedBooking(null)}
+          onRefresh={() => {
+            fetchBookings();
+            onAddLog();
+          }}
+        />
+      )}
+
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs z-[60] flex items-center justify-center p-4 animate-fade-in text-xs">
+          <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-150 dark:border-slate-800 shadow-2xl max-w-sm w-full overflow-hidden shrink-0 text-left">
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-slate-105 text-sm leading-snug">{confirmDialog.title}</h3>
+                <p className="text-slate-505 dark:text-slate-400 text-xs mt-2 leading-relaxed">{confirmDialog.message}</p>
               </div>
-              <button onClick={() => setSelectedBooking(null)} className="text-slate-450 hover:text-slate-650 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="p-6 space-y-4 text-xs text-slate-600 dark:text-slate-300">
-              {/* Dynamic Saving Loader */}
-              {savingId === selectedBooking.id && (
-                <div className="bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 p-2 text-center rounded-lg font-bold animate-pulse font-mono flex items-center justify-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Updating appointment status...
-                </div>
-              )}
-
-              {/* Patient/Client Details */}
-              <div className="bg-slate-50 dark:bg-slate-950/40 p-4.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
-                <div className="text-[9px] uppercase font-extrabold text-teal-650 dark:text-teal-400 tracking-wider flex items-center gap-1">
-                  <UserIcon className="w-3.5 h-3.5" /> Client Profile Details
-                </div>
-                {(() => {
-                  const client = clientMap.get(selectedBooking.clientId);
-                  if (client) {
-                    return (
-                      <div className="space-y-1">
-                        <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">{client.firstName} {client.middleName ? `${client.middleName} ` : ""}{client.lastName}</div>
-                        <div>Client ID: <span className="font-mono font-bold text-slate-705 dark:text-slate-300 bg-slate-200/60 dark:bg-slate-800 px-1.5 py-0.5 rounded">{client.id}</span></div>
-                        <div>Mobile Contact: <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{client.mobileNumber}</span></div>
-                        <div className="text-slate-500 dark:text-slate-400 leading-snug">Residence Address: <span className="font-medium text-slate-700 dark:text-slate-300">{client.address}</span></div>
-                        {client.facebookProfileLink && (
-                          <div className="text-slate-500 dark:text-slate-400 font-medium">Facebook URL: <span className="font-mono text-teal-600 dark:text-teal-400 font-bold bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-1.5 py-0.5 rounded inline-block">{client.facebookProfileLink}</span></div>
-                        )}
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="space-y-1">
-                      <div className="font-extrabold text-slate-900 dark:text-slate-105 text-sm">{selectedBooking.clientName}</div>
-                      <div>Client ID: <span className="font-mono font-bold text-slate-705 dark:text-slate-300 bg-slate-200/50 dark:bg-slate-800 px-1.5 py-0.5 rounded">{selectedBooking.clientId}</span></div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Slot Details */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50/50 dark:bg-slate-950/30 p-3.5 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
-                  <div className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-slate-400" /> Scheduled Date
-                  </div>
-                  <div className="font-extrabold text-slate-800 dark:text-slate-200 text-xs font-mono">{selectedBooking.appointmentDate || "—"}</div>
-                </div>
-                <div className="bg-slate-50/50 dark:bg-slate-950/30 p-3.5 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
-                  <div className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-slate-400" /> Scheduled Time
-                  </div>
-                  <div className="font-extrabold text-slate-800 dark:text-slate-200 text-xs font-mono">{formatTimeWithAMPM(selectedBooking.appointmentTime)}</div>
-                </div>
-              </div>
-
-              {/* Assignment Category & Status */}
-              <div className="space-y-3 p-1.5">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider flex items-center gap-1">
-                    <Briefcase className="w-3.5 h-3.5 text-slate-400" /> Appointment Type:
-                  </span>
-                  <span className="font-extrabold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-2.5 py-0.8 rounded text-xs select-none">
-                    {selectedBooking.appointmentType || "Site Visit"}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5 text-slate-400" /> Current Status Indicator:
-                  </span>
-                  <span className={`px-2.5 py-0.8 rounded-full text-xs font-bold border ${getStatusStyle(selectedBooking.status)}`}>
-                    {selectedBooking.status}
-                  </span>
-                </div>
-
-                {selectedBooking.location && (
-                  <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                    <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> Site Project Location:
-                    </span>
-                    <div className="font-extrabold text-slate-800 dark:text-slate-200 pl-4.5 text-xs flex items-center gap-1">
-                      {selectedBooking.location}
-                    </div>
-                    {REALTY_PROJECT_ADDRESSES[selectedBooking.location] && (
-                      <div className="pl-4.5 text-[10px] text-slate-450 dark:text-slate-400 font-medium italic">
-                        Complete Address: {REALTY_PROJECT_ADDRESSES[selectedBooking.location]}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {selectedBooking.notes && (
-                  <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                    <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[9px] tracking-wider flex items-center gap-1">
-                      Remarks / Notes:
-                    </span>
-                    <p className="text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950/35 p-2.5 rounded border dark:border-slate-800 italic font-medium">
-                      "{selectedBooking.notes}"
-                    </p>
-                  </div>
-                )}
-
-                <div className="text-[10px] text-slate-450 border-t border-slate-100 dark:border-slate-800 pt-2 flex justify-between">
-                  <span>Assigned Representative Agent:</span>
-                  <strong className="text-slate-700 dark:text-slate-200">{selectedBooking.agentName}</strong>
-                </div>
+              <div className="flex justify-end gap-2.5 pt-1">
+                <button
+                  onClick={() => setConfirmDialog(null)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border dark:border-slate-800"
+                >
+                  No, Cancel
+                </button>
+                <button
+                  onClick={confirmDialog.onConfirm}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005e57] transition-all cursor-pointer shadow-sm animate-scale-up"
+                >
+                  Confirm & Action
+                </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Actions Footer */}
-            <div className="flex justify-end items-center gap-2.5 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950">
-              {/* Status Updates (Left Side) */}
-              {String(selectedBooking.status).toLowerCase() === "open" && (
-                <div className="flex gap-2 mr-auto">
-                  <button
-                    onClick={() => handleUpdateStatus(selectedBooking.id, "Done" as any)}
-                    disabled={savingId === selectedBooking.id}
-                    className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Mark as Done
-                  </button>
-                  <button
-                    onClick={() => handleUpdateStatus(selectedBooking.id, "Cancelled" as any)}
-                    disabled={savingId === selectedBooking.id}
-                    className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-all cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    Cancel Appointment
-                  </button>
-                </div>
-              )}
-
-              {/* Close Button on the Right Side, styled with color */}
-              <button 
-                onClick={() => setSelectedBooking(null)}
-                className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-slate-700 hover:bg-slate-800 border border-transparent transition-all cursor-pointer"
+      {/* Print Today's Schedule View overlay */}
+      {printViewActive && (
+        <div className="fixed inset-0 bg-white text-slate-900 z-50 overflow-y-auto p-12 space-y-8 print:p-0 select-text font-sans" id="print-view-overlay">
+          {/* Print preview controls banner */}
+          <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-4 rounded-xl no-print shadow-sm">
+            <div className="space-y-0.5 text-left">
+              <h3 className="font-extrabold text-sm text-slate-900">Print-Friendly View Mode Active</h3>
+              <p className="text-xs text-slate-500">The sidebar, navigation, and dashboard controls have been hidden. Press 'Print Now' to configure and run physical print.</p>
+            </div>
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-1.5 bg-[#00786f] hover:bg-[#005e57] text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer inline-flex items-center gap-1.5 transition-all"
               >
-                Close
+                <Printer className="w-3.5 h-3.5" />
+                Print Now
+              </button>
+              <button
+                onClick={() => setPrintViewActive(false)}
+                className="px-4 py-1.5 bg-[#314158] hover:bg-[#253244] text-white text-xs font-bold rounded-lg cursor-pointer transition-all border border-transparent"
+              >
+                Close Preview
               </button>
             </div>
+          </div>
+
+          {/* Document Header */}
+          <div className="border-b-2 border-slate-900 pb-4 text-left">
+            <h1 className="text-2xl font-black uppercase tracking-wide text-slate-900">RealtySync Appointed Pipeline</h1>
+            <div className="flex justify-between items-center text-xs text-slate-500 font-mono mt-2.5 uppercase tracking-widest font-bold">
+              <span>Date generated: {new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila", dateStyle: "long" })}</span>
+              <span>Auditor: {currentUser.firstName} {currentUser.lastName} ({currentUser.role})</span>
+            </div>
+          </div>
+
+          {/* Today's Schedule Table */}
+          <div className="space-y-4 text-left">
+            <h2 className="text-sm font-extrabold uppercase text-indigo-800 tracking-wider">Today's Appointments Schedule</h2>
+            {(() => {
+              const dtf = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" });
+              const todayDateStr = dtf.format(new Date());
+              const todayBookings = bookings.filter(b => b.appointmentDate === todayDateStr);
+
+              if (todayBookings.length === 0) {
+                return (
+                  <div className="p-12 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                    <p className="text-sm font-semibold text-slate-650">No appointment schedules found for today's date.</p>
+                    <p className="text-[10px] text-slate-400 mt-1 font-mono">Check ID: {todayDateStr}</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-55 text-[10px] uppercase font-bold tracking-wider text-slate-600">
+                      <tr>
+                        <th className="px-4 py-3 text-left">ID</th>
+                        <th className="px-4 py-3 text-left">Client Name</th>
+                        <th className="px-4 py-3 text-left">Appointment Type</th>
+                        <th className="px-4 py-3 text-left">Location / Realty Project</th>
+                        <th className="px-4 py-3 text-left">Scheduled Time</th>
+                        <th className="px-4 py-3 text-left">Agent Rep</th>
+                        <th className="px-4 py-3 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 font-medium text-xs text-slate-705">
+                      {todayBookings.map((b) => (
+                        <tr key={b.id}>
+                          <td className="px-4 py-3 font-mono font-bold text-indigo-700">{b.id}</td>
+                          <td className="px-4 py-3 font-bold text-slate-900">{b.clientName}</td>
+                          <td className="px-4 py-3 font-bold text-slate-800">{b.appointmentType}</td>
+                          <td className="px-4 py-3 text-slate-550">
+                            {b.location ? (REALTY_PROJECT_ADDRESSES[b.location] || b.location) : "Online / Remote Meeting"}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-900 font-bold">{formatTimeWithAMPM(b.appointmentTime)}</td>
+                          <td className="px-4 py-3 font-extrabold">{b.agentName}</td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200">
+                              {b.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

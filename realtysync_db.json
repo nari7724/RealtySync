@@ -1,0 +1,437 @@
+{
+  "agents": [
+    {
+      "id": "AG-VBX0316",
+      "firstName": "Nari",
+      "middleName": "",
+      "lastName": "Casama",
+      "email": "nari.casama@gmail.com",
+      "mobileNumber": "09178234865",
+      "prcLicenseNumber": "0023412",
+      "status": "Active",
+      "createdAt": "2026-06-19T13:01:24.032Z"
+    },
+    {
+      "id": "AG-SRA8234",
+      "firstName": "Sarah",
+      "middleName": "A.",
+      "lastName": "Ramirez",
+      "email": "sarah.ramirez@realtysync.com",
+      "mobileNumber": "09178234567",
+      "prcLicenseNumber": "0023412",
+      "status": "Active",
+      "createdAt": "2026-01-10T08:30:00Z"
+    },
+    {
+      "id": "AG-JBL1234",
+      "firstName": "James",
+      "middleName": "B.",
+      "lastName": "Lim",
+      "email": "james.lim@realtysync.com",
+      "mobileNumber": "09181234567",
+      "prcLicenseNumber": "0041235",
+      "status": "Active",
+      "createdAt": "2026-02-15T10:15:00Z"
+    },
+    {
+      "id": "AG-MSA1923",
+      "firstName": "Maria",
+      "middleName": "C.",
+      "lastName": "Santos",
+      "email": "maria.santos@realtysync.com",
+      "mobileNumber": "09192345678",
+      "prcLicenseNumber": "0019234",
+      "status": "Active",
+      "createdAt": "2026-03-20T14:45:00Z"
+    },
+    {
+      "id": "AG-MRA3456",
+      "firstName": "Mark",
+      "middleName": "D.",
+      "lastName": "Ramos",
+      "email": "mark.ramos@realtysync.com",
+      "mobileNumber": "09203456789",
+      "prcLicenseNumber": "0034561",
+      "status": "Inactive",
+      "createdAt": "2026-04-12T09:00:00Z"
+    }
+  ],
+  "clients": [
+    {
+      "id": "CL-JDC1234",
+      "firstName": "Juan",
+      "middleName": "Dela",
+      "lastName": "Cruz",
+      "mobileNumber": "09171234567",
+      "address": "123 Mabini Street, Manila",
+      "facebookProfileLink": "facebook.com/juan.delacruz",
+      "sourceOfLead": "Facebook Ad",
+      "notes": "Particularly interested in 2-bedroom units.",
+      "assignedAgentId": "AG-SRA8234",
+      "assignedAgentName": "Sarah Ramirez",
+      "dateRegistered": "2026-05-12T11:00:00Z",
+      "duplicateStatus": "None"
+    },
+    {
+      "id": "CL-JDC1235",
+      "firstName": "Juan",
+      "middleName": "",
+      "lastName": "Delacruz",
+      "mobileNumber": "09171234567",
+      "address": "123 Mabini St., Metro Manila",
+      "facebookProfileLink": "facebook.com/juan.delacruz",
+      "sourceOfLead": "Direct Walk-In",
+      "notes": "Wants to reserve unit this week.",
+      "assignedAgentId": "AG-JBL1234",
+      "assignedAgentName": "James Lim",
+      "dateRegistered": "2026-06-01T15:20:00Z",
+      "duplicateStatus": "Strong"
+    },
+    {
+      "id": "CL-JPS1337",
+      "firstName": "Johnathan",
+      "middleName": "Paul",
+      "lastName": "Smith",
+      "mobileNumber": "09189876543",
+      "address": "Lot 5, Villa Sol, Angeles City",
+      "facebookProfileLink": "facebook.com/jpsmith",
+      "sourceOfLead": "Broker Referral",
+      "notes": "High budget commercial investor.",
+      "assignedAgentId": "AG-MSA1923",
+      "assignedAgentName": "Maria Santos",
+      "dateRegistered": "2026-06-05T09:12:00Z",
+      "duplicateStatus": "None"
+    },
+    {
+      "id": "CL-JPS1338",
+      "firstName": "Johnny",
+      "middleName": "",
+      "lastName": "Smith",
+      "mobileNumber": "09189876543",
+      "address": "Villa Sol Subdivision, Angeles City",
+      "facebookProfileLink": "facebook.com/jpsmith",
+      "sourceOfLead": "Flyer",
+      "notes": "Looking for commercial lease.",
+      "assignedAgentId": "AG-SRA8234",
+      "assignedAgentName": "Sarah Ramirez",
+      "dateRegistered": "2026-06-14T01:30:00Z",
+      "duplicateStatus": "Strong"
+    }
+  ],
+  "bookings": [
+    {
+      "id": "APT-QMA7359",
+      "clientId": "CL-JDC1234",
+      "clientName": "Juan Cruz",
+      "agentId": "AG-SRA8234",
+      "agentName": "Sarah Ramirez",
+      "appointmentType": "Site Visit",
+      "appointmentDate": "2026-06-19",
+      "appointmentTime": "16:00",
+      "dateTime": "2026-06-19T16:00",
+      "location": "Park Point Residences",
+      "status": "Open",
+      "notes": "",
+      "createdAt": "2026-06-19T13:04:10.244Z"
+    },
+    {
+      "id": "APT-NAG0977",
+      "clientId": "CL-JPS1337",
+      "clientName": "Johnathan Smith",
+      "agentId": "AG-MSA1923",
+      "agentName": "Maria Santos",
+      "appointmentType": "Release of Title",
+      "appointmentDate": "2026-06-19",
+      "appointmentTime": "10:00",
+      "dateTime": "2026-06-19T10:00",
+      "location": "",
+      "status": "Open",
+      "notes": "",
+      "createdAt": "2026-06-19T13:01:59.466Z"
+    },
+    {
+      "id": "APT-IWS8956",
+      "clientId": "CL-JDC1234",
+      "clientName": "Juan Cruz",
+      "agentId": "AG-SRA8234",
+      "agentName": "Sarah Ramirez",
+      "appointmentType": "Site Visit",
+      "appointmentDate": "2026-06-19",
+      "appointmentTime": "10:00",
+      "dateTime": "2026-06-19T10:00",
+      "location": "Park Point Residences",
+      "status": "Open",
+      "notes": "",
+      "createdAt": "2026-06-19T12:59:37.613Z"
+    }
+  ],
+  "dualEntries": [
+    {
+      "id": "CON-JDC1111",
+      "clientName": "Juan Dela Cruz",
+      "clientIdA": "CL-JDC1234",
+      "clientIdB": "CL-JDC1235",
+      "agentIdA": "AG-SRA8234",
+      "agentNameA": "Sarah Ramirez",
+      "agentIdB": "AG-JBL1234",
+      "agentNameB": "James Lim",
+      "dateA": "2026-05-12T11:00:00Z",
+      "dateB": "2026-06-01T15:20:00Z",
+      "similarityScore": 100,
+      "status": "Confirmed Duplicate",
+      "details": {
+        "clientA": {
+          "id": "CL-JDC1234",
+          "firstName": "Juan",
+          "middleName": "Dela",
+          "lastName": "Cruz",
+          "mobileNumber": "09171234567",
+          "address": "123 Mabini Street, Manila",
+          "facebookProfileLink": "facebook.com/juan.delacruz",
+          "sourceOfLead": "Facebook Ad",
+          "notes": "Particularly interested in 2-bedroom units.",
+          "assignedAgentId": "AG-SRA8234",
+          "assignedAgentName": "Sarah Ramirez",
+          "dateRegistered": "2026-05-12T11:00:00Z",
+          "duplicateStatus": "None"
+        },
+        "clientB": {
+          "id": "CL-JDC1235",
+          "firstName": "Juan",
+          "middleName": "",
+          "lastName": "Delacruz",
+          "mobileNumber": "09171234567",
+          "address": "123 Mabini St., Metro Manila",
+          "facebookProfileLink": "facebook.com/juan.delacruz",
+          "sourceOfLead": "Direct Walk-In",
+          "notes": "Wants to reserve unit this week.",
+          "assignedAgentId": "AG-JBL1234",
+          "assignedAgentName": "James Lim",
+          "dateRegistered": "2026-06-01T15:20:00Z",
+          "duplicateStatus": "Strong"
+        },
+        "differences": {
+          "name": true,
+          "phone": false,
+          "address": true
+        }
+      }
+    },
+    {
+      "id": "CON-JPS2222",
+      "clientName": "Johnathan Smith",
+      "clientIdA": "CL-JPS1337",
+      "clientIdB": "CL-JPS1338",
+      "agentIdA": "AG-MSA1923",
+      "agentNameA": "Maria Santos",
+      "agentIdB": "AG-SRA8234",
+      "agentNameB": "Sarah Ramirez",
+      "dateA": "2026-06-05T09:12:00Z",
+      "dateB": "2026-06-14T01:30:00Z",
+      "similarityScore": 100,
+      "status": "Confirmed Duplicate",
+      "details": {
+        "clientA": {
+          "id": "CL-JPS1337",
+          "firstName": "Johnathan",
+          "middleName": "Paul",
+          "lastName": "Smith",
+          "mobileNumber": "09189876543",
+          "address": "Lot 5, Villa Sol, Angeles City",
+          "facebookProfileLink": "facebook.com/jpsmith",
+          "sourceOfLead": "Broker Referral",
+          "notes": "High budget commercial investor.",
+          "assignedAgentId": "AG-MSA1923",
+          "assignedAgentName": "Maria Santos",
+          "dateRegistered": "2026-06-05T09:12:00Z",
+          "duplicateStatus": "None"
+        },
+        "clientB": {
+          "id": "CL-JPS1338",
+          "firstName": "Johnny",
+          "middleName": "",
+          "lastName": "Smith",
+          "mobileNumber": "09189876543",
+          "address": "Villa Sol Subdivision, Angeles City",
+          "facebookProfileLink": "facebook.com/jpsmith",
+          "sourceOfLead": "Flyer",
+          "notes": "Looking for commercial lease.",
+          "assignedAgentId": "AG-SRA8234",
+          "assignedAgentName": "Sarah Ramirez",
+          "dateRegistered": "2026-06-14T01:30:00Z",
+          "duplicateStatus": "Strong"
+        },
+        "differences": {
+          "name": true,
+          "phone": false,
+          "address": true
+        }
+      }
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif_1",
+      "title": "Dual Entry Alert",
+      "message": "Conflict detected: Agents Sarah Ramirez and James Lim uploaded duplicates of 'Juan Dela Cruz'.",
+      "timestamp": "2026-06-01T15:20:00Z",
+      "read": false,
+      "type": "DUPLICATE_ALERT"
+    },
+    {
+      "id": "notif_2",
+      "title": "New Dual Entry Registered",
+      "message": "Agent Sarah Ramirez registered 'Johnny Smith' which conflicts with Maria Santos's 'Johnathan Smith'.",
+      "timestamp": "2026-06-14T01:30:00Z",
+      "read": false,
+      "type": "DUPLICATE_ALERT"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": "log_1781874381840_323",
+      "userId": "admin_user",
+      "userEmail": "admin@realtysync.com",
+      "userName": "Broker Admin",
+      "userRole": "ADMIN",
+      "action": "Dual Entry Resolved: Mark Duplicate",
+      "entity": "Conflict involving 'Juan Dela Cruz'",
+      "timestamp": "2026-06-19T13:06:21.840Z",
+      "previousValue": "{\"id\":\"CON-JDC1111\",\"clientName\":\"Juan Dela Cruz\",\"clientIdA\":\"CL-JDC1234\",\"clientIdB\":\"CL-JDC1235\",\"agentIdA\":\"AG-SRA8234\",\"agentNameA\":\"Sarah Ramirez\",\"agentIdB\":\"AG-JBL1234\",\"agentNameB\":\"James Lim\",\"dateA\":\"2026-05-12T11:00:00Z\",\"dateB\":\"2026-06-01T15:20:00Z\",\"similarityScore\":100,\"status\":\"Pending Review\",\"details\":{\"clientA\":{\"id\":\"CL-JDC1234\",\"firstName\":\"Juan\",\"middleName\":\"Dela\",\"lastName\":\"Cruz\",\"mobileNumber\":\"09171234567\",\"address\":\"123 Mabini Street, Manila\",\"facebookProfileLink\":\"facebook.com/juan.delacruz\",\"sourceOfLead\":\"Facebook Ad\",\"notes\":\"Particularly interested in 2-bedroom units.\",\"assignedAgentId\":\"AG-SRA8234\",\"assignedAgentName\":\"Sarah Ramirez\",\"dateRegistered\":\"2026-05-12T11:00:00Z\",\"duplicateStatus\":\"None\"},\"clientB\":{\"id\":\"CL-JDC1235\",\"firstName\":\"Juan\",\"middleName\":\"\",\"lastName\":\"Delacruz\",\"mobileNumber\":\"09171234567\",\"address\":\"123 Mabini St., Metro Manila\",\"facebookProfileLink\":\"facebook.com/juan.delacruz\",\"sourceOfLead\":\"Direct Walk-In\",\"notes\":\"Wants to reserve unit this week.\",\"assignedAgentId\":\"AG-JBL1234\",\"assignedAgentName\":\"James Lim\",\"dateRegistered\":\"2026-06-01T15:20:00Z\",\"duplicateStatus\":\"Strong\"},\"differences\":{\"name\":true,\"phone\":false,\"address\":true}}}",
+      "newValue": "{\"id\":\"CON-JDC1111\",\"clientName\":\"Juan Dela Cruz\",\"clientIdA\":\"CL-JDC1234\",\"clientIdB\":\"CL-JDC1235\",\"agentIdA\":\"AG-SRA8234\",\"agentNameA\":\"Sarah Ramirez\",\"agentIdB\":\"AG-JBL1234\",\"agentNameB\":\"James Lim\",\"dateA\":\"2026-05-12T11:00:00Z\",\"dateB\":\"2026-06-01T15:20:00Z\",\"similarityScore\":100,\"status\":\"Confirmed Duplicate\",\"details\":{\"clientA\":{\"id\":\"CL-JDC1234\",\"firstName\":\"Juan\",\"middleName\":\"Dela\",\"lastName\":\"Cruz\",\"mobileNumber\":\"09171234567\",\"address\":\"123 Mabini Street, Manila\",\"facebookProfileLink\":\"facebook.com/juan.delacruz\",\"sourceOfLead\":\"Facebook Ad\",\"notes\":\"Particularly interested in 2-bedroom units.\",\"assignedAgentId\":\"AG-SRA8234\",\"assignedAgentName\":\"Sarah Ramirez\",\"dateRegistered\":\"2026-05-12T11:00:00Z\",\"duplicateStatus\":\"None\"},\"clientB\":{\"id\":\"CL-JDC1235\",\"firstName\":\"Juan\",\"middleName\":\"\",\"lastName\":\"Delacruz\",\"mobileNumber\":\"09171234567\",\"address\":\"123 Mabini St., Metro Manila\",\"facebookProfileLink\":\"facebook.com/juan.delacruz\",\"sourceOfLead\":\"Direct Walk-In\",\"notes\":\"Wants to reserve unit this week.\",\"assignedAgentId\":\"AG-JBL1234\",\"assignedAgentName\":\"James Lim\",\"dateRegistered\":\"2026-06-01T15:20:00Z\",\"duplicateStatus\":\"Strong\"},\"differences\":{\"name\":true,\"phone\":false,\"address\":true}}}"
+    },
+    {
+      "id": "log_1781874317519_934",
+      "userId": "admin_user",
+      "userEmail": "admin@realtysync.com",
+      "userName": "Broker Admin",
+      "userRole": "ADMIN",
+      "action": "Dual Entry Resolved: Mark Duplicate",
+      "entity": "Conflict involving 'Johnathan Smith'",
+      "timestamp": "2026-06-19T13:05:17.519Z",
+      "previousValue": "{\"id\":\"CON-JPS2222\",\"clientName\":\"Johnathan Smith\",\"clientIdA\":\"CL-JPS1337\",\"clientIdB\":\"CL-JPS1338\",\"agentIdA\":\"AG-MSA1923\",\"agentNameA\":\"Maria Santos\",\"agentIdB\":\"AG-SRA8234\",\"agentNameB\":\"Sarah Ramirez\",\"dateA\":\"2026-06-05T09:12:00Z\",\"dateB\":\"2026-06-14T01:30:00Z\",\"similarityScore\":100,\"status\":\"Pending Review\",\"details\":{\"clientA\":{\"id\":\"CL-JPS1337\",\"firstName\":\"Johnathan\",\"middleName\":\"Paul\",\"lastName\":\"Smith\",\"mobileNumber\":\"09189876543\",\"address\":\"Lot 5, Villa Sol, Angeles City\",\"facebookProfileLink\":\"facebook.com/jpsmith\",\"sourceOfLead\":\"Broker Referral\",\"notes\":\"High budget commercial investor.\",\"assignedAgentId\":\"AG-MSA1923\",\"assignedAgentName\":\"Maria Santos\",\"dateRegistered\":\"2026-06-05T09:12:00Z\",\"duplicateStatus\":\"None\"},\"clientB\":{\"id\":\"CL-JPS1338\",\"firstName\":\"Johnny\",\"middleName\":\"\",\"lastName\":\"Smith\",\"mobileNumber\":\"09189876543\",\"address\":\"Villa Sol Subdivision, Angeles City\",\"facebookProfileLink\":\"facebook.com/jpsmith\",\"sourceOfLead\":\"Flyer\",\"notes\":\"Looking for commercial lease.\",\"assignedAgentId\":\"AG-SRA8234\",\"assignedAgentName\":\"Sarah Ramirez\",\"dateRegistered\":\"2026-06-14T01:30:00Z\",\"duplicateStatus\":\"Strong\"},\"differences\":{\"name\":true,\"phone\":false,\"address\":true}}}",
+      "newValue": "{\"id\":\"CON-JPS2222\",\"clientName\":\"Johnathan Smith\",\"clientIdA\":\"CL-JPS1337\",\"clientIdB\":\"CL-JPS1338\",\"agentIdA\":\"AG-MSA1923\",\"agentNameA\":\"Maria Santos\",\"agentIdB\":\"AG-SRA8234\",\"agentNameB\":\"Sarah Ramirez\",\"dateA\":\"2026-06-05T09:12:00Z\",\"dateB\":\"2026-06-14T01:30:00Z\",\"similarityScore\":100,\"status\":\"Confirmed Duplicate\",\"details\":{\"clientA\":{\"id\":\"CL-JPS1337\",\"firstName\":\"Johnathan\",\"middleName\":\"Paul\",\"lastName\":\"Smith\",\"mobileNumber\":\"09189876543\",\"address\":\"Lot 5, Villa Sol, Angeles City\",\"facebookProfileLink\":\"facebook.com/jpsmith\",\"sourceOfLead\":\"Broker Referral\",\"notes\":\"High budget commercial investor.\",\"assignedAgentId\":\"AG-MSA1923\",\"assignedAgentName\":\"Maria Santos\",\"dateRegistered\":\"2026-06-05T09:12:00Z\",\"duplicateStatus\":\"None\"},\"clientB\":{\"id\":\"CL-JPS1338\",\"firstName\":\"Johnny\",\"middleName\":\"\",\"lastName\":\"Smith\",\"mobileNumber\":\"09189876543\",\"address\":\"Villa Sol Subdivision, Angeles City\",\"facebookProfileLink\":\"facebook.com/jpsmith\",\"sourceOfLead\":\"Flyer\",\"notes\":\"Looking for commercial lease.\",\"assignedAgentId\":\"AG-SRA8234\",\"assignedAgentName\":\"Sarah Ramirez\",\"dateRegistered\":\"2026-06-14T01:30:00Z\",\"duplicateStatus\":\"Strong\"},\"differences\":{\"name\":true,\"phone\":false,\"address\":true}}}"
+    },
+    {
+      "id": "log_1781874250244_110",
+      "userId": "admin_user",
+      "userEmail": "sarah.ramirez@realtysync.com",
+      "userName": "Broker Admin",
+      "userRole": "ADMIN",
+      "action": "Appointment Created",
+      "entity": "Appointment [Site Visit] for Juan Cruz",
+      "timestamp": "2026-06-19T13:04:10.244Z",
+      "newValue": "{\"id\":\"APT-QMA7359\",\"clientId\":\"CL-JDC1234\",\"clientName\":\"Juan Cruz\",\"agentId\":\"AG-SRA8234\",\"agentName\":\"Sarah Ramirez\",\"appointmentType\":\"Site Visit\",\"appointmentDate\":\"2026-06-19\",\"appointmentTime\":\"16:00\",\"dateTime\":\"2026-06-19T16:00\",\"location\":\"Park Point Residences\",\"status\":\"Open\",\"notes\":\"\",\"createdAt\":\"2026-06-19T13:04:10.244Z\"}"
+    },
+    {
+      "id": "log_1781874119466_296",
+      "userId": "admin_user",
+      "userEmail": "sarah.ramirez@realtysync.com",
+      "userName": "Broker Admin",
+      "userRole": "ADMIN",
+      "action": "Appointment Created",
+      "entity": "Appointment [Release of Title] for Johnathan Smith",
+      "timestamp": "2026-06-19T13:01:59.466Z",
+      "newValue": "{\"id\":\"APT-NAG0977\",\"clientId\":\"CL-JPS1337\",\"clientName\":\"Johnathan Smith\",\"agentId\":\"AG-MSA1923\",\"agentName\":\"Maria Santos\",\"appointmentType\":\"Release of Title\",\"appointmentDate\":\"2026-06-19\",\"appointmentTime\":\"10:00\",\"dateTime\":\"2026-06-19T10:00\",\"location\":\"\",\"status\":\"Open\",\"notes\":\"\",\"createdAt\":\"2026-06-19T13:01:59.466Z\"}"
+    },
+    {
+      "id": "log_1781874084032_197",
+      "userId": "admin_user",
+      "userEmail": "admin@realtysync.com",
+      "userName": "Broker Admin",
+      "userRole": "ADMIN",
+      "action": "Agent Account Created",
+      "entity": "Agent: Nari Casama",
+      "timestamp": "2026-06-19T13:01:24.032Z",
+      "newValue": "{\"id\":\"AG-VBX0316\",\"firstName\":\"Nari\",\"middleName\":\"\",\"lastName\":\"Casama\",\"email\":\"nari.casama@gmail.com\",\"mobileNumber\":\"09178234865\",\"prcLicenseNumber\":\"0023412\",\"status\":\"Active\",\"createdAt\":\"2026-06-19T13:01:24.032Z\"}"
+    },
+    {
+      "id": "log_1781873977613_11",
+      "userId": "AG-SRA8234",
+      "userEmail": "sarah.ramirez@realtysync.com",
+      "userName": "Sarah Ramirez",
+      "userRole": "AGENT",
+      "action": "Appointment Created",
+      "entity": "Appointment [Site Visit] for Juan Cruz",
+      "timestamp": "2026-06-19T12:59:37.613Z",
+      "newValue": "{\"id\":\"APT-IWS8956\",\"clientId\":\"CL-JDC1234\",\"clientName\":\"Juan Cruz\",\"agentId\":\"AG-SRA8234\",\"agentName\":\"Sarah Ramirez\",\"appointmentType\":\"Site Visit\",\"appointmentDate\":\"2026-06-19\",\"appointmentTime\":\"10:00\",\"dateTime\":\"2026-06-19T10:00\",\"location\":\"Park Point Residences\",\"status\":\"Open\",\"notes\":\"\",\"createdAt\":\"2026-06-19T12:59:37.613Z\"}"
+    },
+    {
+      "id": "LOG-1781873181126_918",
+      "userId": "AG-SRA8234",
+      "userEmail": "admin@realtysync.com",
+      "userName": "Sarah Ramirez",
+      "userRole": "AGENT",
+      "action": "Appointment Status to 'Done'",
+      "entity": "Appointment ID: APT-VME6906 (Juan Cruz)",
+      "timestamp": "2026-06-19T12:46:21.126Z",
+      "previousValue": "{\"id\":\"APT-VME6906\",\"clientId\":\"CL-JDC1234\",\"clientName\":\"Juan Cruz\",\"agentId\":\"AG-SRA8234\",\"agentName\":\"Sarah Ramirez\",\"appointmentType\":\"Site Visit\",\"appointmentDate\":\"2026-06-19\",\"appointmentTime\":\"10:00\",\"dateTime\":\"2026-06-19T10:00\",\"location\":\"The Alcoves\",\"status\":\"Open\",\"notes\":\"\",\"createdAt\":\"2026-06-19T12:45:22.143Z\"}",
+      "newValue": "{\"id\":\"APT-VME6906\",\"clientId\":\"CL-JDC1234\",\"clientName\":\"Juan Cruz\",\"agentId\":\"AG-SRA8234\",\"agentName\":\"Sarah Ramirez\",\"appointmentType\":\"Site Visit\",\"appointmentDate\":\"2026-06-19\",\"appointmentTime\":\"10:00\",\"dateTime\":\"2026-06-19T10:00\",\"location\":\"The Alcoves\",\"status\":\"Done\",\"notes\":\"\",\"createdAt\":\"2026-06-19T12:45:22.143Z\"}"
+    },
+    {
+      "id": "LOG-1781873166127_648",
+      "userId": "AG-SRA8234",
+      "userEmail": "admin@realtysync.com",
+      "userName": "Sarah Ramirez",
+      "userRole": "AGENT",
+      "action": "Appointment Status to 'Open'",
+      "entity": "Appointment ID: APT-VME6906 (Juan Cruz)",
+      "timestamp": "2026-06-19T12:46:06.127Z",
+      "previousValue": "{\"id\":\"APT-VME6906\",\"clientId\":\"CL-JDC1234\",\"clientName\":\"Juan Cruz\",\"agentId\":\"AG-SRA8234\",\"agentName\":\"Sarah Ramirez\",\"appointmentType\":\"Reservation\",\"appointmentDate\":\"2026-06-19\",\"appointmentTime\":\"10:00\",\"dateTime\":\"2026-06-19T10:00\",\"location\":\"\",\"status\":\"Open\",\"notes\":\"\",\"createdAt\":\"2026-06-19T12:45:22.143Z\"}",
+      "newValue": "{\"id\":\"APT-VME6906\",\"clientId\":\"CL-JDC1234\",\"clientName\":\"Juan Cruz\",\"agentId\":\"AG-SRA8234\",\"agentName\":\"Sarah Ramirez\",\"appointmentType\":\"Site Visit\",\"appointmentDate\":\"2026-06-19\",\"appointmentTime\":\"10:00\",\"dateTime\":\"2026-06-19T10:00\",\"location\":\"The Alcoves\",\"status\":\"Open\",\"notes\":\"\",\"createdAt\":\"2026-06-19T12:45:22.143Z\"}"
+    },
+    {
+      "id": "LOG-1781873122143_213",
+      "userId": "AG-SRA8234",
+      "userEmail": "sarah.ramirez@realtysync.com",
+      "userName": "Sarah Ramirez",
+      "userRole": "AGENT",
+      "action": "Appointment Created",
+      "entity": "Appointment [Reservation] for Juan Cruz",
+      "timestamp": "2026-06-19T12:45:22.143Z",
+      "newValue": "{\"id\":\"APT-VME6906\",\"clientId\":\"CL-JDC1234\",\"clientName\":\"Juan Cruz\",\"agentId\":\"AG-SRA8234\",\"agentName\":\"Sarah Ramirez\",\"appointmentType\":\"Reservation\",\"appointmentDate\":\"2026-06-19\",\"appointmentTime\":\"10:00\",\"dateTime\":\"2026-06-19T10:00\",\"location\":\"\",\"status\":\"Open\",\"notes\":\"\",\"createdAt\":\"2026-06-19T12:45:22.143Z\"}"
+    },
+    {
+      "id": "LOG-1",
+      "userId": "admin_user",
+      "userEmail": "admin@realtysync.com",
+      "userName": "Broker Admin",
+      "userRole": "ADMIN",
+      "action": "System Initialized",
+      "entity": "Database",
+      "timestamp": "2026-06-14T00:00:00Z"
+    },
+    {
+      "id": "LOG-2",
+      "userId": "AG-SRA8234",
+      "userEmail": "sarah.ramirez@realtysync.com",
+      "userName": "Sarah Ramirez",
+      "userRole": "AGENT",
+      "action": "Client Registered",
+      "entity": "Client (Juan Dela Cruz)",
+      "timestamp": "2026-05-12T11:00:00Z",
+      "newValue": "Juan Dela Cruz - Sarah Ramirez"
+    },
+    {
+      "id": "LOG-3",
+      "userId": "AG-JBL1234",
+      "userEmail": "james.lim@realtysync.com",
+      "userName": "James Lim",
+      "userRole": "AGENT",
+      "action": "Duplicate Client Claimed",
+      "entity": "Client (Juan Delacruz)",
+      "timestamp": "2026-06-01T15:20:00Z",
+      "newValue": "Juan Delacruz - James Lim (Similarity Score: 100%)"
+    }
+  ],
+  "realtyProjects": [
+    "Avida Towers Riala",
+    "Solinea Resort Condominium",
+    "The Alcoves",
+    "Park Point Residences",
+    "Amara Subdivision",
+    "Amaia Steps Mandaue",
+    "Cebu IT Park Residences",
+    "Marco Polo Residences"
+  ]
+}
