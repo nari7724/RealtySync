@@ -483,7 +483,7 @@ export function ClientMasterList({
                           className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
                         >
                           <BookOpen className="w-3.5 h-3.5" />
-                          Set Appointment
+                          Set an Appointment
                         </button>
 
                         <button

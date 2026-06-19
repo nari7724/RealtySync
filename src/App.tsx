@@ -1303,10 +1303,6 @@ export default function App() {
             />
           )}
 
-          {currentTab === "bookings" && (
-            <BookingList currentUser={currentUser} triggerRefreshStamp={refreshStamp} onAddLog={forceRefresh} />
-          )}
-
           {currentTab === "projects" && currentUser && (
             <MyProjects currentUser={currentUser} />
           )}
@@ -1321,6 +1317,10 @@ export default function App() {
 
           {currentTab === "reports" && isAdmin && (
             <ReportsPanel />
+          )}
+
+          {currentTab === "bookings" && (
+            <BookingList currentUser={currentUser} triggerRefreshStamp={refreshStamp} onAddLog={forceRefresh} />
           )}
 
         </div>
