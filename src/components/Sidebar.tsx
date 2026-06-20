@@ -62,8 +62,9 @@ export function Sidebar({
   const agentMenu = [
     { id: "dashboard", label: "Agent Console", icon: LayoutDashboard },
     { id: "clients", label: "My Clients", icon: UserCheck },
-    { id: "projects", label: "My Projects", icon: Building2 },
     { id: "bookings", label: "My Appointment", icon: TrendingUp },
+    { id: "projects", label: "My Projects", icon: Building2 },
+    
   ];
 
   const activeMenu = isAdmin ? adminMenu : agentMenu;
