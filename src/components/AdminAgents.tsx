@@ -505,7 +505,7 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
                   onClick={confirmDialog.onConfirm}
                   className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005e57] transition-all cursor-pointer shadow-sm animate-scale-up"
                 >
-                  Confirm & Action
+                  Confirm
                 </button>
               </div>
             </div>

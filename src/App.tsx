@@ -556,7 +556,7 @@ export default function App() {
           </div>
 
           <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl p-8 space-y-6">
-            <h2 className="text-xl font-semibold text-white tracking-tight">Authenticate Workspace</h2>
+            <h2 className="text-xl font-semibold text-white tracking-tight">Sign in to Workspace</h2>
 
             {authError && (
               <div className="bg-red-500/10 border border-red-500/20 text-red-405 p-3.5 rounded-lg text-xs flex items-center gap-2">
@@ -684,7 +684,7 @@ export default function App() {
   const isAdmin = currentUser.role === UserRole.ADMIN;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex selection:bg-teal-500 selection:text-white" id="main-admin-layout">
+    <div className="min-h-screen bg-[#F3F6F8] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex selection:bg-cyan-500 selection:text-white" id="main-admin-layout">
       {/* Sidebar navigation */}
       <Sidebar 
         currentTab={currentTab} 
@@ -699,7 +699,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto h-screen p-8 relative flex flex-col justify-between">
+      <main className="flex-1 overflow-y-auto h-screen px-6 py-7 lg:px-8 relative flex flex-col justify-between">
         
         {/* Render Active View Tab */}
         <div className="space-y-8 animate-fade-in mb-12">
@@ -707,22 +707,42 @@ export default function App() {
           {currentTab === "dashboard" && (
             <div className="space-y-6">
               {/* Dynamic Header */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="rs-panel p-5 lg:p-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-5">
                 <div>
-                  <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-                    <Sparkles className="w-6 h-6 text-teal-600 fill-teal-600" />
-                    Howdy, {currentUser.firstName}!
+                  <div className="rs-page-kicker mb-2">Today&apos;s Operating Review</div>
+                  <h1 className="text-3xl font-black text-slate-950 tracking-tight flex items-center gap-2.5">
+                    <Sparkles className="w-6 h-6 text-cyan-600 fill-cyan-600" />
+                    Command Center
                   </h1>
-                  <p className="text-sm text-slate-500 mt-1">
+                  <p className="text-sm text-slate-600 mt-2 max-w-3xl leading-relaxed">
                     {isAdmin 
-                      ? "Broker Admin System Portal. Oversee double client claim compliance logs below." 
-                      : "Broker Operating Console. Maintain your lead accountability list and reservation stream."}
+                      ? `Good day, ${currentUser.firstName}. Review duplicate risk, today's appointments, agent activity, and decisions that need broker attention.`
+                      : `Good day, ${currentUser.firstName}. Keep your appointments, client records, and overlap risks moving from one focused workspace.`}
                   </p>
                 </div>
 
-                <div className="inline-flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-lg border border-slate-150 shadow-sm text-xs text-slate-500 font-mono font-bold">
-                  <Clock className="w-4 h-4 text-teal-600" />
-                  <span>Manila: {manilaTime}</span>
+                <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
+                  <button
+                    onClick={() => {
+                      setAutoOpenAddClient(true);
+                      setCurrentTab("clients");
+                    }}
+                    className="px-4 py-2.5 bg-[#007f8a] hover:bg-[#075e66] text-white rounded-lg text-xs font-black inline-flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    Add Client
+                  </button>
+                  <button
+                    onClick={() => setCurrentTab(isAdmin ? "conflicts" : "bookings")}
+                    className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs font-black inline-flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    {isAdmin ? <ShieldAlert className="w-4 h-4 text-amber-600" /> : <Calendar className="w-4 h-4 text-cyan-700" />}
+                    {isAdmin ? "Review Conflicts" : "Open Appointments"}
+                  </button>
+                  <div className="inline-flex items-center gap-2 bg-slate-950 text-white px-3.5 py-2.5 rounded-lg border border-slate-800 shadow-sm text-xs font-mono font-bold">
+                    <Clock className="w-4 h-4 text-cyan-300" />
+                    <span>{manilaTime}</span>
+                  </div>
                 </div>
               </div>
 
@@ -730,13 +750,13 @@ export default function App() {
               {statsData ? (
                 (() => {
                   const itemsList: any[] = [
-                    { type: "Site Visit", icon: MapPin, text: "Site Visit Today", textCol: "text-teal-700 dark:text-teal-400", bg: "bg-teal-50 dark:bg-teal-950/40", tooltip: "Active scheduled site visits with prospective real estate buyers today." },
-                    { type: "Reservation", icon: Bookmark, text: "Reservation Today", textCol: "text-indigo-700 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/40", tooltip: "Direct property downpayment and booking slots reserved today." },
-                    { type: "Submit Requirements", icon: FileCheck, text: "Requirements Today", textCol: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40", tooltip: "Verify buyer documentary requirements and submissions today." },
-                    { type: "Payment", icon: CheckCircle, text: "Payment Today", textCol: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40", tooltip: "Brokerage client amortizations and installment payouts due today." },
-                    { type: "Inquiry", icon: MessageSquare, text: "Inquiry Today", textCol: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/40", tooltip: "Initial inquiry requests, consultations, and prospect leads scheduled today." },
-                    { type: "Meeting", icon: Users, text: "Meeting Today", textCol: "text-purple-700 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/40", tooltip: "Face-to-face or virtual corporate meetings with prospective realty leads today." },
-                    { type: "Release of Title", icon: FileText, text: "Title Release Today", textCol: "text-rose-700 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40", tooltip: "Official property ownership document and Title Deed handovers scheduled today." },
+                    { type: "Site Visit", icon: MapPin, text: "Site Visits", textCol: "text-cyan-700 dark:text-cyan-400", bg: "bg-cyan-50 dark:bg-cyan-950/40", tooltip: "Active scheduled site visits with prospective real estate buyers today." },
+                    { type: "Reservation", icon: Bookmark, text: "Reservations", textCol: "text-indigo-700 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/40", tooltip: "Direct property downpayment and booking slots reserved today." },
+                    { type: "Submit Requirements", icon: FileCheck, text: "Requirements", textCol: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40", tooltip: "Buyer document requirements and submissions due today." },
+                    { type: "Payment", icon: CheckCircle, text: "Payments", textCol: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40", tooltip: "Client amortizations and installment payouts due today." },
+                    { type: "Inquiry", icon: MessageSquare, text: "Inquiries", textCol: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/40", tooltip: "Initial inquiry requests, consultations, and prospect leads scheduled today." },
+                    { type: "Meeting", icon: Users, text: "Meetings", textCol: "text-violet-700 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-950/40", tooltip: "Face-to-face or virtual meetings with prospective realty leads today." },
+                    { type: "Release of Title", icon: FileText, text: "Title Releases", textCol: "text-rose-700 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40", tooltip: "Official property ownership document and title handovers scheduled today." },
                   ].filter(item => {
                     const count = statsData.appointmentTypeCountsToday?.[item.type] || 0;
                     return count > 0;
@@ -749,7 +769,7 @@ export default function App() {
                       isConflict: true,
                       type: "Conflicts Queue",
                       icon: AlertTriangle,
-                      text: "Conflicts Queue",
+                      text: "Conflict Queue",
                       textCol: "text-amber-600 dark:text-amber-450",
                       bg: "bg-amber-50/70 dark:bg-amber-950/30",
                       tooltip: "Your total registered clients whose profiles require review due to dual-agent brokerage interest conflicts."
@@ -757,7 +777,7 @@ export default function App() {
                   }
 
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="stats-summary-grid">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4" id="stats-summary-grid">
                       {cardsToRender.map((item, idx) => {
                         const isConflict = 'isConflict' in item;
                         const count = isConflict 
@@ -771,7 +791,8 @@ export default function App() {
                             initial={{ opacity: 0, y: 12 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.35, delay: idx * 0.1, ease: "easeOut" }}
-                            className="group relative bg-white dark:bg-slate-900 p-4.5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 flex flex-col justify-between"
+                            className="group rs-priority-card p-5 pl-6 dark:bg-slate-900 dark:border-slate-800 flex flex-col justify-between"
+                            data-tone={isConflict ? "warning" : count > 0 ? "success" : "default"}
                           >
                             {/* Hover Tooltip Popup */}
                             <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 bg-slate-900 border border-slate-800 text-white text-[10px] rounded-lg p-2.5 text-center font-bold pointer-events-none shadow-lg leading-normal">
@@ -781,32 +802,32 @@ export default function App() {
                             </div>
 
                             <div className="flex justify-between items-start mb-2">
-                              <div className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-widest pt-1 leading-none">
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-wider pt-1 leading-none">
                                 {item.text}
                               </div>
-                              <span className={`p-1.5 rounded-lg ${item.bg} ${item.textCol} shrink-0`}>
-                                <IconComp className="w-3.5 h-3.5" />
+                              <span className={`p-2 rounded-lg ${item.bg} ${item.textCol} shrink-0`}>
+                                <IconComp className="w-4 h-4" />
                               </span>
                             </div>
 
                             <div>
                               {isConflict ? (
                                 <>
-                                  <div className="text-2xl font-black text-slate-800 dark:text-slate-100">
+                                  <div className="text-3xl font-black text-slate-950 dark:text-slate-100">
                                     <Counter value={count} />
                                   </div>
-                                  <div className="text-[9px] text-slate-450 dark:text-slate-500 mt-1 font-semibold font-mono uppercase tracking-wide">
-                                    Integrity Check
+                                  <div className="text-[10px] text-amber-700 dark:text-amber-400 mt-1 font-black uppercase tracking-wide">
+                                    Needs Review
                                   </div>
                                 </>
                               ) : (
                                 <div className="space-y-2.5 mt-1">
                                   <div className="flex justify-between items-baseline border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                                    <span className="text-2xl font-black text-slate-800 dark:text-slate-100">
+                                    <span className="text-3xl font-black text-slate-950 dark:text-slate-100">
                                       <Counter value={count} />
                                     </span>
-                                    <span className="text-[9px] text-slate-450 dark:text-slate-500 font-extrabold font-mono uppercase tracking-widest">
-                                      Total Today
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-wider">
+                                      Today
                                     </span>
                                   </div>
                                   <div className="grid grid-cols-3 gap-1.5 text-center text-[11px] font-mono font-bold">
@@ -849,11 +870,11 @@ export default function App() {
                 <div className="space-y-6">
                   {/* Newly discovered conflicts table log for Admins */}
                   {isAdmin && notifications.length > 0 && (
-                    <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-5 shadow-sm space-y-4">
+                    <div className="rs-panel border-amber-200 bg-amber-50/70 p-5 space-y-4">
                       <div className="flex items-center justify-between border-b border-amber-200/50 pb-2">
                         <div className="flex items-center gap-1.5 text-amber-800 font-bold text-sm uppercase tracking-wide">
                           <ShieldAlert className="w-4 h-4" />
-                          Duplicate Entry Alerts ({unreadNotifCount} unread)
+                          Duplicate Risk Alerts ({unreadNotifCount} unread)
                         </div>
                         <button onClick={() => setCurrentTab("conflicts")} className="text-xs hover:underline text-amber-800 font-semibold inline-flex items-center gap-1">
                           Review All Conflicts <ChevronRight className="w-3 h-3" />
@@ -875,14 +896,14 @@ export default function App() {
                   )}
 
                   {/* Today's Earliest Open Appointments */}
-                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 shadow-sm p-6 space-y-4">
+                  <div className="rs-panel dark:bg-slate-900 dark:border-slate-800/80 p-6 space-y-4">
                     <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800/85 pb-3">
                       <div className="space-y-0.5">
                         <h2 className="text-md font-bold text-slate-850 dark:text-slate-100 uppercase tracking-widest flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-teal-600 animate-pulse" />
-                          Today's Earliest Open Appointments
+                          <Clock className="w-4 h-4 text-cyan-600" />
+                          Next Open Appointments
                         </h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Staged schedule order for your topmost earliest active open bookings today.</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">The first appointments that need attention today, sorted by time.</p>
                       </div>
                     </div>
 
@@ -1089,54 +1110,58 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Core SaaS overview dashboard links */}
-                  <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-4">
-                    <h2 className="text-md font-bold text-slate-800 uppercase tracking-widest">
-                      Operating Actions Hub
-                    </h2>
+                  {/* Core operating actions */}
+                  <div className="rs-panel p-6 space-y-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h2 className="text-base font-black text-slate-950">Operating Actions</h2>
+                        <p className="text-xs text-slate-500 mt-1">Fast paths for the work most likely to unblock the day.</p>
+                      </div>
+                    </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <button
                         onClick={() => setCurrentTab("clients")}
-                        className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                        className="rs-priority-card p-4.5 pl-5 text-left group"
                       >
-                        <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
+                        <div className="w-8 h-8 rounded bg-cyan-50 text-cyan-700 flex items-center justify-center font-bold mb-3">
                           <UserCheck className="w-4 h-4" />
                         </div>
                         <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                          My Clients
+                          Client Records
                           <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
                         </h3>
-                        <p className="text-xs text-slate-455 mt-1">Browse client registers, mobile claims, and allocate booking reservation sheets.</p>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Find, add, and verify client ownership before booking.</p>
                       </button>
 
                       <button
                         onClick={() => setCurrentTab("bookings")}
-                        className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                        className="rs-priority-card p-4.5 pl-5 text-left group"
                       >
-                        <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
+                        <div className="w-8 h-8 rounded bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold mb-3">
                           <Calendar className="w-4 h-4" />
                         </div>
                         <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                          Check Appointment
+                          Appointments
                           <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
                         </h3>
-                        <p className="text-xs text-slate-455 mt-1">Review scheduled client timetables, track statuses, and finalize appointments.</p>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Review schedules, statuses, and client follow-through.</p>
                       </button>
 
                       {isAdmin ? (
                         <button
                           onClick={() => setCurrentTab("conflicts")}
-                          className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-amber-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                          className="rs-priority-card p-4.5 pl-5 text-left group"
+                          data-tone="warning"
                         >
                           <div className="w-8 h-8 rounded bg-amber-50 text-amber-700 flex items-center justify-center font-bold mb-3">
                             <Layers className="w-4 h-4" />
                           </div>
                           <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                            Integrity Overlaps Queue
+                            Conflict Review
                             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
                           </h3>
-                          <p className="text-xs text-slate-450 mt-1">Review side-by-side agent overlays, verify telephone claims, and merge customer files.</p>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">Compare claims, decide ownership, and protect the audit trail.</p>
                         </button>
                       ) : (
                         <button
@@ -1144,16 +1169,16 @@ export default function App() {
                             setAutoOpenAddClient(true);
                             setCurrentTab("clients");
                           }}
-                          className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                          className="rs-priority-card p-4.5 pl-5 text-left group"
                         >
-                          <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
+                          <div className="w-8 h-8 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold mb-3">
                             <PlusCircle className="w-4 h-4" />
                           </div>
                           <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
                             Register Client
                             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
                           </h3>
-                          <p className="text-xs text-slate-455 mt-1">Run fuzzy likeness checking and register new real estate customers instantly.</p>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">Check for overlap risk while adding a new lead.</p>
                         </button>
                       )}
                     </div>

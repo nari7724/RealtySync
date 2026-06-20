@@ -2,6 +2,167 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+:root {
+  color-scheme: light;
+  --rs-bg: #f3f6f8;
+  --rs-panel: #ffffff;
+  --rs-panel-muted: #f8fafc;
+  --rs-border: #dbe4ea;
+  --rs-ink: #162033;
+  --rs-muted: #64748b;
+  --rs-primary: #007f8a;
+  --rs-primary-dark: #075e66;
+  --rs-warning: #b45309;
+  --rs-danger: #be123c;
+  --rs-success: #047857;
+}
+
+html {
+  background: var(--rs-bg);
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(0, 127, 138, 0.08), transparent 34rem),
+    linear-gradient(180deg, #f8fafc 0%, var(--rs-bg) 42rem);
+  color: var(--rs-ink);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+button,
+input,
+select,
+textarea {
+  letter-spacing: 0;
+}
+
+button {
+  cursor: pointer;
+}
+
+#main-admin-layout main {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0)),
+    var(--rs-bg);
+}
+
+#main-admin-layout main > div {
+  width: min(100%, 1480px);
+  margin-inline: auto;
+}
+
+#main-admin-layout h1,
+#main-admin-layout h2,
+#main-admin-layout h3 {
+  letter-spacing: 0;
+}
+
+#main-admin-layout table {
+  font-variant-numeric: tabular-nums;
+}
+
+#main-admin-layout thead tr {
+  background: #f8fafc;
+}
+
+#main-admin-layout th {
+  color: #64748b;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+#main-admin-layout td {
+  vertical-align: middle;
+}
+
+#main-admin-layout input,
+#main-admin-layout select,
+#main-admin-layout textarea {
+  border-color: var(--rs-border);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+#main-admin-layout input:focus,
+#main-admin-layout select:focus,
+#main-admin-layout textarea:focus {
+  border-color: var(--rs-primary);
+  box-shadow: 0 0 0 3px rgba(0, 127, 138, 0.12);
+}
+
+#main-admin-layout .rounded-xl {
+  border-radius: 0.5rem;
+}
+
+#main-admin-layout .rounded-2xl {
+  border-radius: 0.625rem;
+}
+
+#main-admin-layout .shadow-sm {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+#main-admin-layout [class*="bg-teal-700"],
+#main-admin-layout [class*="bg-[#00786f]"] {
+  background-color: var(--rs-primary);
+}
+
+#main-admin-layout [class*="hover:bg-teal-800"]:hover,
+#main-admin-layout [class*="hover:bg-[#005e57]"]:hover,
+#main-admin-layout [class*="hover:bg-[#005a53]"]:hover {
+  background-color: var(--rs-primary-dark);
+}
+
+.rs-page-kicker {
+  color: var(--rs-primary);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.rs-panel {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--rs-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.rs-priority-card {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--rs-border);
+  border-radius: 0.5rem;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.rs-priority-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 127, 138, 0.35);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.rs-priority-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--rs-primary);
+}
+
+.rs-priority-card[data-tone="warning"]::before {
+  background: var(--rs-warning);
+}
+
+.rs-priority-card[data-tone="danger"]::before {
+  background: var(--rs-danger);
+}
+
+.rs-priority-card[data-tone="success"]::before {
+  background: var(--rs-success);
+}
+
 @utility animate-subtle-entrance {
   animation: subtleEntrance 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

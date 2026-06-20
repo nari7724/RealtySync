@@ -402,7 +402,7 @@ export function ClientMasterList({
                 <tr className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-slate-804">
                   <th className="px-6 py-4">Client ID</th>
                   <th className="px-6 py-4">Client Information</th>
-                  <th className="px-6 py-4">SaaS Overlap Integrity</th>
+                  <th className="px-6 py-4">Duplicate Risk</th>
                   <th className="px-6 py-4 flex-1">Registration Timeline</th>
                   <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
@@ -813,7 +813,7 @@ export function ClientMasterList({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Remarks / Remarks</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Remarks</label>
                 <textarea
                   value={clientFormData.notes}
                   onChange={(e) => setClientFormData({ ...clientFormData, notes: e.target.value })}
@@ -860,7 +860,7 @@ export function ClientMasterList({
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 leading-snug">
-                    SaaS Overlap Integrity Details
+                    Duplicate Risk Details
                   </h3>
                   <p className="text-xs text-slate-550 dark:text-slate-400 mt-1">
                     System screening record for duplicates, registered agents, and overlap statistics.
@@ -1092,7 +1092,7 @@ export function ClientMasterList({
                   onClick={confirmDialog.onConfirm}
                   className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005a53] transition-all cursor-pointer shadow-sm"
                 >
-                  Confirm & Action
+                  Confirm
                 </button>
               </div>
             </div>

@@ -118,7 +118,7 @@ export function ConflictQueue({ onResolve, currentUser }: ConflictQueueProps) {
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
           <Layers className="w-6 h-6 text-teal-700 dark:text-teal-400" />
-          Dual Entry Tracking Module
+          Conflict Review
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Review overlapping client submissions between multiple agents, inspect details side-by-side, and resolve booking ownership conflicts.</p>
       </div>
@@ -212,7 +212,7 @@ export function ConflictQueue({ onResolve, currentUser }: ConflictQueueProps) {
                 <div>
                   <h2 className="text-md font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-                    Dual Entry Audit: {selectedConflict.clientName}
+                    Conflict Audit: {selectedConflict.clientName}
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Overlap Match Score: <strong className="text-amber-600 dark:text-amber-400">{selectedConflict.similarityScore}% Match</strong></p>
                 </div>
@@ -473,7 +473,7 @@ export function ConflictQueue({ onResolve, currentUser }: ConflictQueueProps) {
                   onClick={confirmDialog.onConfirm}
                   className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005e57] transition-all cursor-pointer shadow-sm animate-scale-up"
                 >
-                  Confirm & Action
+                  Confirm
                 </button>
               </div>
             </div>
