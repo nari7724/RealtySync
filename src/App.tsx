@@ -54,6 +54,7 @@ import { DashboardCharts } from "./components/DashboardCharts.tsx";
 import { RecentActivity } from "./components/RecentActivity.tsx";
 import { MyProjects } from "./components/MyProjects.tsx";
 import { AppointmentDetailModal } from "./components/AppointmentDetailModal.tsx";
+import { ProfileSettings } from "./components/ProfileSettings.tsx";
 
 function Counter({ value }: { value: number }) {
   const [count, setCount] = useState(0);
@@ -167,6 +168,67 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
+  // Forced password change states
+  const [forcedNewPassword, setForcedNewPassword] = useState("");
+  const [forcedConfirmPassword, setForcedConfirmPassword] = useState("");
+  const [forcedLoading, setForcedLoading] = useState(false);
+  const [forcedError, setForcedError] = useState<string | null>(null);
+  const [forcedSuccess, setForcedSuccess] = useState<string | null>(null);
+
+  const handleForcedPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForcedError(null);
+    setForcedSuccess(null);
+
+    if (!forcedNewPassword || !forcedConfirmPassword) {
+      setForcedError("Please fill out both password fields.");
+      return;
+    }
+
+    if (forcedNewPassword.length < 6) {
+      setForcedError("Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (forcedNewPassword !== forcedConfirmPassword) {
+      setForcedError("Passwords do not match.");
+      return;
+    }
+
+    setForcedLoading(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser?.id,
+          newPassword: forcedNewPassword,
+        }),
+      });
+
+      if (!res.ok) {
+        const errObj = await res.json();
+        throw new Error(errObj.error || "Password change failed.");
+      }
+
+      setForcedSuccess("Password updated successfully! Welcome to RealtySync.");
+      
+      // Delay clear to show success response message overlay
+      setTimeout(() => {
+        const updated = { ...currentUser!, forcePasswordChange: false };
+        setCurrentUser(updated);
+        localStorage.setItem("realtysync_user", JSON.stringify(updated));
+        setForcedNewPassword("");
+        setForcedConfirmPassword("");
+        setForcedSuccess(null);
+      }, 1500);
+    } catch (err: any) {
+      setForcedError(err.message || "Failed to submit password update.");
+    } finally {
+      setForcedLoading(false);
+    }
+  };
+
   // Selected earliest booking details modal
   const [selectedEarliestBooking, setSelectedEarliestBooking] = useState<any | null>(null);
   const [isEditingEarliest, setIsEditingEarliest] = useState(false);
@@ -174,15 +236,16 @@ export default function App() {
   const [earliestSaving, setEarliestSaving] = useState(false);
   const [earliestError, setEarliestError] = useState("");
 
-  const [authEmail, setAuthEmail] = useState("admin@realtysync.com");
+  const [authEmail, setAuthEmail] = useState("");
   const [authRole, setAuthRole] = useState<UserRole>(UserRole.ADMIN);
-  const [authPassword, setAuthPassword] = useState("admin123");
+  const [authPassword, setAuthPassword] = useState("");
   const [authRemember, setAuthRemember] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
   // General App states
   const [currentTab, setCurrentTab] = useState("dashboard");
+  const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
   const [autoOpenAddClient, setAutoOpenAddClient] = useState(false);
   const [showEarliestConfirm, setShowEarliestConfirm] = useState(false);
   const [agentsList, setAgentsList] = useState<Agent[]>([]);
@@ -227,11 +290,19 @@ export default function App() {
       const res = await fetch("/api/dual-entries");
       if (res.ok) {
         const data = await res.json();
-        const filtered = data.filter((entry: any) => 
-          (entry.agentIdA === currentUser.id || entry.agentIdB === currentUser.id) &&
-          entry.status === "Pending Review"
-        );
-        setAgentConflicts(filtered);
+        const filtered = data.filter((entry: any) => {
+          if (currentUser.role === UserRole.ADMIN) {
+            return entry.status === "Pending Review";
+          }
+          return (entry.agentIdA === currentUser.id || entry.agentIdB === currentUser.id) &&
+                 entry.status === "Pending Review";
+        });
+        const sorted = filtered.sort((a: any, b: any) => {
+          const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return tB - tA;
+        });
+        setAgentConflicts(sorted);
       }
     } catch (err) {
       console.error("Error fetching agent conflicts:", err);
@@ -565,62 +636,9 @@ export default function App() {
               </div>
             )}
 
-            {/* Quick Demo Preloaded accounts helper list */}
-            <div className="bg-slate-900/40 border border-slate-700/50 p-3 rounded-lg space-y-1.5 text-xs text-slate-300">
-              <span className="font-semibold text-teal-400 block mb-1">Preconfigured demo credentials:</span>
-              <button 
-                type="button"
-                onClick={() => {
-                  setAuthEmail("admin@realtysync.com");
-                  setAuthRole(UserRole.ADMIN);
-                }}
-                className="w-full text-left font-mono hover:text-white flex justify-between cursor-pointer"
-              >
-                <span>👤 Admin: admin@realtysync.com</span>
-                <span className="text-[10px] text-teal-500 font-bold bg-teal-900/50 px-1 rounded hover:underline">Apply</span>
-              </button>
-              <button 
-                type="button"
-                onClick={() => {
-                  setAuthEmail("sarah.ramirez@realtysync.com");
-                  setAuthRole(UserRole.AGENT);
-                }}
-                className="w-full text-left font-mono hover:text-white flex justify-between cursor-pointer"
-              >
-                <span>👤 Agent: sarah.ramirez@realtysync.com</span>
-                <span className="text-[10px] text-teal-500 font-bold bg-teal-900/50 px-1 rounded hover:underline">Apply</span>
-              </button>
-            </div>
+
 
             <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Authorized Role</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAuthRole(UserRole.ADMIN)}
-                    className={`py-2 px-3.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      authRole === UserRole.ADMIN 
-                        ? "bg-teal-500/15 text-teal-350 border-teal-500" 
-                        : "bg-slate-900/50 text-slate-400 border-slate-700"
-                    }`}
-                  >
-                    Office Broker Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthRole(UserRole.AGENT)}
-                    className={`py-2 px-3.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      authRole === UserRole.AGENT 
-                        ? "bg-teal-500/15 text-teal-350 border-teal-500" 
-                        : "bg-slate-900/50 text-slate-400 border-slate-700"
-                    }`}
-                  >
-                    Operating Agent
-                  </button>
-                </div>
-              </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5" htmlFor="email-input">E-mail Address</label>
                 <div className="relative">
@@ -683,6 +701,92 @@ export default function App() {
   // --- RENDER COMPREHENSIVE FULL-STACK CONTROL PLANE ---
   const isAdmin = currentUser.role === UserRole.ADMIN;
 
+  if (currentUser && currentUser.forcePasswordChange) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 selection:bg-teal-500 selection:text-white" id="force-password-change-view">
+        <div className="absolute inset-x-0 top-[-10rem] -z-10 transform-gpu overflow-hidden blur-3xl sm:top-[-20rem]" aria-hidden="true">
+          <div className="relative left-1/2 -z-10 aspect-[1155/678] w-[36rem] max-w-none -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-teal-500 to-indigo-700 opacity-20 sm:w-[72rem]"></div>
+        </div>
+
+        <div className="max-w-md w-full space-y-6">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-xl bg-teal-500 flex items-center justify-center mx-auto text-white font-extrabold text-lg shadow-xl shadow-teal-500/10 mb-4 tracking-widest animate-pulse">
+              RS
+            </div>
+            <h1 className="text-3xl font-extrabold text-white tracking-tight">Security Required</h1>
+            <p className="text-sm text-slate-405 mt-2">Change your password before utilizing RealtySync</p>
+          </div>
+
+          <div className="bg-slate-800 rounded-2xl border border-slate-705 shadow-2xl p-8 space-y-6">
+            <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 text-amber-300 p-4 rounded-xl text-xs leading-relaxed">
+              <ShieldAlert className="w-5 h-5 shrink-0 text-amber-500" />
+              <span>
+                Your profile is configured with a temporary password. You are required to update your security password credentials upon first sign-in.
+              </span>
+            </div>
+
+            {forcedSuccess && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-305 p-3.5 rounded-lg text-xs flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 shrink-0 text-emerald-500 animate-bounce" />
+                <span>{forcedSuccess}</span>
+              </div>
+            )}
+
+            {forcedError && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-405 p-3.5 rounded-lg text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-500 animate-wiggle" />
+                <span>{forcedError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleForcedPasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">New Security Password</label>
+                <input
+                  type="password"
+                  placeholder="Min 6 characters"
+                  value={forcedNewPassword}
+                  onChange={(e) => setForcedNewPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-900 border border-slate-700 text-white rounded-lg focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-colors placeholder:text-slate-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Confirm New Password</label>
+                <input
+                  type="password"
+                  placeholder="Repeat new password"
+                  value={forcedConfirmPassword}
+                  onChange={(e) => setForcedConfirmPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-900 border border-slate-700 text-white rounded-lg focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-colors placeholder:text-slate-500"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="px-4 py-2.5 border border-slate-700 rounded-lg text-xs text-slate-300 hover:bg-slate-700 font-bold transition-all cursor-pointer"
+                >
+                  Cancel & Sign Out
+                </button>
+                <button
+                  type="submit"
+                  disabled={forcedLoading}
+                  className="flex-1 px-4 py-2.5 bg-teal-600 hover:bg-teal-750 text-white font-bold rounded-lg text-xs transition-all shadow-md shadow-teal-500/10 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {forcedLoading ? "Updating..." : "Save Password"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex selection:bg-teal-500 selection:text-white" id="main-admin-layout">
       {/* Sidebar navigation */}
@@ -728,78 +832,125 @@ export default function App() {
 
               {/* Stats Counters Grid: Total count of each appointment type for today */}
               {statsData ? (
-                (() => {
-                  const itemsList: any[] = [
-                    { type: "Site Visit", icon: MapPin, text: "Site Visit Today", textCol: "text-teal-700 dark:text-teal-400", bg: "bg-teal-50 dark:bg-teal-950/40", tooltip: "Active scheduled site visits with prospective real estate buyers today." },
-                    { type: "Reservation", icon: Bookmark, text: "Reservation Today", textCol: "text-indigo-700 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/40", tooltip: "Direct property downpayment and booking slots reserved today." },
-                    { type: "Submit Requirements", icon: FileCheck, text: "Requirements Today", textCol: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40", tooltip: "Verify buyer documentary requirements and submissions today." },
-                    { type: "Payment", icon: CheckCircle, text: "Payment Today", textCol: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40", tooltip: "Brokerage client amortizations and installment payouts due today." },
-                    { type: "Inquiry", icon: MessageSquare, text: "Inquiry Today", textCol: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/40", tooltip: "Initial inquiry requests, consultations, and prospect leads scheduled today." },
-                    { type: "Meeting", icon: Users, text: "Meeting Today", textCol: "text-purple-700 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/40", tooltip: "Face-to-face or virtual corporate meetings with prospective realty leads today." },
-                    { type: "Release of Title", icon: FileText, text: "Title Release Today", textCol: "text-rose-700 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40", tooltip: "Official property ownership document and Title Deed handovers scheduled today." },
-                  ].filter(item => {
-                    const count = statsData.appointmentTypeCountsToday?.[item.type] || 0;
-                    return count > 0;
-                  });
+                isAdmin ? (
+                  <div className="space-y-4">
+                    {/* Conflicts Queue Card */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <motion.div 
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.35, ease: "easeOut" }}
+                        className="group relative bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="text-[10px] text-slate-450 dark:text-slate-500 font-extrabold uppercase tracking-widest pt-1 leading-none">
+                            Conflicts Queue
+                          </div>
+                          <span className="p-1.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/30 text-amber-600 dark:text-amber-450 shrink-0">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-3xl font-black text-slate-800 dark:text-slate-100">
+                            <Counter value={statsData.totalDuplicates || 0} />
+                          </div>
+                          <div className="text-[9px] text-slate-450 dark:text-slate-500 mt-1 font-semibold font-mono uppercase tracking-wide">
+                            Pending Integrity Conflicts
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
 
-                  // Add the conflict card ONLY for Admins
-                  const cardsToRender = [...itemsList];
-                  if (isAdmin) {
-                    cardsToRender.push({
-                      isConflict: true,
-                      type: "Conflicts Queue",
-                      icon: AlertTriangle,
-                      text: "Conflicts Queue",
-                      textCol: "text-amber-600 dark:text-amber-450",
-                      bg: "bg-amber-50/70 dark:bg-amber-950/30",
-                      tooltip: "Your total registered clients whose profiles require review due to dual-agent brokerage interest conflicts."
-                    });
-                  }
-
-                  return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="stats-summary-grid">
-                      {cardsToRender.map((item, idx) => {
-                        const isConflict = 'isConflict' in item;
-                        const count = isConflict 
-                          ? (statsData.totalDuplicates || 0) 
-                          : (statsData.appointmentTypeCountsToday?.[item.type] || 0);
-                        const IconComp = item.icon;
-
-                        return (
-                          <motion.div 
-                            key={item.type} 
-                            initial={{ opacity: 0, y: 12 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.35, delay: idx * 0.1, ease: "easeOut" }}
-                            className="group relative bg-white dark:bg-slate-900 p-4.5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 flex flex-col justify-between"
-                          >
-                            {/* Hover Tooltip Popup */}
-                            <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 bg-slate-900 border border-slate-800 text-white text-[10px] rounded-lg p-2.5 text-center font-bold pointer-events-none shadow-lg leading-normal">
-                              {item.tooltip}
-                              {/* Tail Arrow */}
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900"></div>
-                            </div>
-
-                            <div className="flex justify-between items-start mb-2">
-                              <div className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-widest pt-1 leading-none">
-                                {item.text}
+                    {/* Top 3 most urgent dual entries */}
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-6 space-y-4 shadow-sm">
+                      <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800/85 pb-3">
+                        <h2 className="text-md font-bold text-slate-850 dark:text-slate-100 uppercase tracking-widest flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 animate-pulse" />
+                          Most Urgent Overlaps Queue (Top 3)
+                        </h2>
+                        <button
+                          onClick={() => setCurrentTab("conflicts")}
+                          className="text-xs text-amber-600 hover:text-amber-750 font-bold hover:underline bg-transparent"
+                        >
+                          View All Queue
+                        </button>
+                      </div>
+                      {agentConflicts.length === 0 ? (
+                        <p className="text-xs text-slate-455 text-center py-4 font-medium">No pending integrity conflicts in queue.</p>
+                      ) : (
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {agentConflicts.slice(0, 3).map((conflict) => (
+                            <div key={conflict.id} className="py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                              <div className="space-y-1 text-xs">
+                                <div className="font-bold text-slate-950">
+                                  Client Profile: {conflict.clientNameA || "Unnamed Client"}
+                                </div>
+                                <div className="text-[11px] text-slate-500 space-y-0.5">
+                                  <div><span className="font-semibold text-slate-600">Claimant Agent A:</span> {conflict.agentNameA} (ID: {conflict.agentIdA})</div>
+                                  <div><span className="font-semibold text-slate-600">Claimant Agent B:</span> {conflict.agentNameB} (ID: {conflict.agentIdB})</div>
+                                </div>
                               </div>
-                              <span className={`p-1.5 rounded-lg ${item.bg} ${item.textCol} shrink-0`}>
-                                <IconComp className="w-3.5 h-3.5" />
-                              </span>
+                              <button
+                                onClick={() => {
+                                  setSelectedConflictId(conflict.id);
+                                  setCurrentTab("conflicts");
+                                }}
+                                className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-700 text-[11px] font-bold text-white transition-all cursor-pointer shadow-sm"
+                              >
+                                Resolve Overlap
+                              </button>
                             </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  (() => {
+                    const itemsList: any[] = [
+                      { type: "Site Visit", icon: MapPin, text: "Site Visit Today", textCol: "text-teal-700 dark:text-teal-400", bg: "bg-teal-50 dark:bg-teal-950/40", tooltip: "Active scheduled site visits with prospective real estate buyers today." },
+                      { type: "Reservation", icon: Bookmark, text: "Reservation Today", textCol: "text-indigo-700 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/40", tooltip: "Direct property downpayment and booking slots reserved today." },
+                      { type: "Submit Requirements", icon: FileCheck, text: "Requirements Today", textCol: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40", tooltip: "Verify buyer documentary requirements and submissions today." },
+                      { type: "Payment", icon: CheckCircle, text: "Payment Today", textCol: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40", tooltip: "Brokerage client amortizations and installment payouts due today." },
+                      { type: "Inquiry", icon: MessageSquare, text: "Inquiry Today", textCol: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/40", tooltip: "Initial inquiry requests, consultations, and prospect leads scheduled today." },
+                      { type: "Meeting", icon: Users, text: "Meeting Today", textCol: "text-purple-700 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/40", tooltip: "Face-to-face or virtual corporate meetings with prospective realty leads today." },
+                      { type: "Release of Title", icon: FileText, text: "Title Release Today", textCol: "text-rose-700 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40", tooltip: "Official property ownership document and Title Deed handovers scheduled today." },
+                    ].filter(item => {
+                      const count = statsData.appointmentTypeCountsToday?.[item.type] || 0;
+                      return count > 0;
+                    });
 
-                            <div>
-                              {isConflict ? (
-                                <>
-                                  <div className="text-2xl font-black text-slate-800 dark:text-slate-100">
-                                    <Counter value={count} />
-                                  </div>
-                                  <div className="text-[9px] text-slate-450 dark:text-slate-500 mt-1 font-semibold font-mono uppercase tracking-wide">
-                                    Integrity Check
-                                  </div>
-                                </>
-                              ) : (
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="stats-summary-grid">
+                        {itemsList.map((item, idx) => {
+                          const count = statsData.appointmentTypeCountsToday?.[item.type] || 0;
+                          const IconComp = item.icon;
+
+                          return (
+                            <motion.div 
+                              key={item.type} 
+                              initial={{ opacity: 0, y: 12 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.35, delay: idx * 0.1, ease: "easeOut" }}
+                              className="group relative bg-white dark:bg-slate-900 p-4.5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 flex flex-col justify-between"
+                            >
+                              {/* Hover Tooltip Popup */}
+                              <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 bg-slate-900 border border-slate-800 text-white text-[10px] rounded-lg p-2.5 text-center font-bold pointer-events-none shadow-lg leading-normal">
+                                {item.tooltip}
+                                {/* Tail Arrow */}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900"></div>
+                              </div>
+
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-widest pt-1 leading-none">
+                                  {item.text}
+                                </div>
+                                <span className={`p-1.5 rounded-lg ${item.bg} ${item.textCol} shrink-0`}>
+                                  <IconComp className="w-3.5 h-3.5" />
+                                </span>
+                              </div>
+
+                              <div>
                                 <div className="space-y-2.5 mt-1">
                                   <div className="flex justify-between items-baseline border-b border-slate-100 dark:border-slate-800 pb-1.5">
                                     <span className="text-2xl font-black text-slate-800 dark:text-slate-100">
@@ -820,24 +971,24 @@ export default function App() {
                                       <div className="text-emerald-700 dark:text-emerald-400">
                                         {statsData.appointmentTypeStatusBreakdownToday?.[item.type]?.done ?? 0}
                                       </div>
-                                      <div className="text-[8px] text-emerald-500 dark:text-emerald-550 font-extrabold uppercase tracking-wider mt-0.5">Done</div>
+                                      <div className="text-[8px] text-emerald-500 dark:text-emerald-555 font-extrabold uppercase tracking-wider mt-0.5">Done</div>
                                     </div>
                                     <div className="rounded-lg bg-rose-50 dark:bg-rose-950/40 py-1.5 border border-rose-100 dark:border-rose-900/30">
                                       <div className="text-rose-700 dark:text-rose-400">
                                         {statsData.appointmentTypeStatusBreakdownToday?.[item.type]?.cancelled ?? 0}
                                       </div>
-                                      <div className="text-[8px] text-rose-500 dark:text-rose-550 font-extrabold uppercase tracking-wider mt-0.5">Cancelled</div>
+                                      <div className="text-[8px] text-rose-500 dark:text-rose-555 font-extrabold uppercase tracking-wider mt-0.5">Cancelled</div>
                                     </div>
                                   </div>
                                 </div>
-                              )}
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
+                )
               ) : (
                 <div className="animate-pulse bg-white dark:bg-slate-900 rounded-xl h-28 border border-slate-100 dark:border-slate-800"></div>
               )}
@@ -873,126 +1024,128 @@ export default function App() {
                       </div>
                     </div>
                   )}
-
-                  {/* Today's Earliest Open Appointments */}
-                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 shadow-sm p-6 space-y-4">
-                    <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800/85 pb-3">
-                      <div className="space-y-0.5">
-                        <h2 className="text-md font-bold text-slate-850 dark:text-slate-100 uppercase tracking-widest flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-teal-600 animate-pulse" />
-                          Today's Earliest Open Appointments
-                        </h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Staged schedule order for your topmost earliest active open bookings today.</p>
+                  {/* Today's Earliest Open Appointments (Agents Role Only) */}
+                  {!isAdmin && (
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 shadow-sm p-6 space-y-4">
+                      <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800/85 pb-3">
+                        <div className="space-y-0.5">
+                          <h2 className="text-md font-bold text-slate-850 dark:text-slate-100 uppercase tracking-widest flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-teal-600 animate-pulse" />
+                            Today's Earliest Open Appointments
+                          </h2>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Staged schedule order for your topmost earliest active open bookings today.</p>
+                        </div>
                       </div>
-                    </div>
 
-                    {earliestBookings.length > 0 ? (
-                      <div className="space-y-3.5">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                              <tr className="border-b border-slate-100 dark:border-slate-800/85 text-[10px] uppercase font-bold text-slate-400 dark:text-slate-550 tracking-wider">
-                                <th className="py-2.5 px-3">Appointment ID</th>
-                                <th className="py-2.5 px-3">Date & Time</th>
-                                <th className="py-2.5 px-3">Project / Location</th>
-                                <th className="py-2.5 px-3">Client Details</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-850/65">
-                              {earliestBookings.map((b, index) => (
-                                <tr 
-                                  key={b.id} 
-                                  className={`text-xs text-slate-705 dark:text-slate-300 ${
-                                    index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/40 dark:bg-slate-950/20"
-                                  } hover:bg-slate-50 dark:hover:bg-slate-805/65 hover:scale-[1.01] hover:shadow-2xs transition-all duration-200 ease-in-out origin-left transform cursor-default`}
-                                >
-                                  <td className="py-3 px-3 whitespace-nowrap font-medium">
-                                    <button 
-                                      onClick={() => {
-                                        setSelectedEarliestBooking(b);
-                                        setIsEditingEarliest(false);
-                                        setEarliestEditForm({ appointmentTime: b.appointmentTime || "", location: b.location || "" });
-                                        setEarliestError("");
-                                      }}
-                                      className="font-mono font-extrabold text-teal-650 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 hover:underline bg-teal-50 dark:bg-teal-950/40 border border-teal-100/70 dark:border-teal-900/40 px-2.5 py-1 rounded cursor-pointer transition-colors text-left"
-                                      title="Click to view full appointment details"
-                                    >
-                                      {b.id}
-                                    </button>
-                                  </td>
-                                  <td className="py-3 px-3 font-mono font-bold whitespace-nowrap">
-                                    <div className="text-slate-900 dark:text-slate-200">{b.appointmentDate}</div>
-                                    <div className="text-slate-500 dark:text-slate-450 text-[11px] font-medium mt-1.5 flex flex-col sm:flex-row sm:items-center gap-1.5">
-                                      <span>{formatTimeWithAMPM(b.appointmentTime)}</span>
-                                      {isBookingDueSoon(b.appointmentDate, b.appointmentTime) && (
-                                        <span className="inline-flex items-center gap-0.5 bg-red-100 border border-red-200 dark:border-red-900 dark:bg-red-950/80 text-red-700 dark:text-red-350 font-extrabold px-1.5 py-0.5 rounded text-[9px] animate-pulse select-none shrink-0" title="Occurring within standard 30 min window!">
-                                          <Clock className="w-2.5 h-2.5" /> DUE SOON
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-3 max-w-[200px] font-medium text-slate-655 dark:text-slate-400">
-                                    <div className="font-bold text-slate-900 dark:text-slate-200">{b.location || "—"}</div>
-                                    {b.location && REALTY_PROJECT_ADDRESSES[b.location] && (
-                                      <div className="text-[10px] text-slate-455 dark:text-slate-550 mt-1 leading-snug font-medium italic">
-                                        Location: {REALTY_PROJECT_ADDRESSES[b.location]}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="py-3 px-3">
-                                    <div className="font-medium">
-                                      <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">ID: {b.clientId}</span>
-                                      <div className="font-bold text-slate-900 dark:text-slate-200">{b.clientName}</div>
-                                      <div className="text-[11px] text-slate-500 dark:text-slate-450 font-mono mt-0.5">{b.clientMobile || "—"}</div>
-                                    </div>
-                                  </td>
+                      {earliestBookings.length > 0 ? (
+                        <div className="space-y-3.5">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="border-b border-slate-100 dark:border-slate-800/85 text-[10px] uppercase font-bold text-slate-400 dark:text-slate-550 tracking-wider">
+                                  <th className="py-2.5 px-3">Appointment ID</th>
+                                  <th className="py-2.5 px-3">Date & Time</th>
+                                  <th className="py-2.5 px-3">Project / Location</th>
+                                  <th className="py-2.5 px-3">Client Details</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* Status Legend Indicator */}
-                        <div className="bg-slate-50/40 dark:bg-slate-950/30 rounded-lg p-3 border border-slate-100 dark:border-slate-800/60 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-slate-550 dark:text-slate-400 font-medium">
-                          <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[9px]">Legend Indicators:</span>
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center gap-0.5 bg-red-100 border border-red-200 dark:border-red-900 dark:bg-red-950/85 text-red-700 dark:text-red-350 font-extrabold px-1.5 py-0.5 rounded text-[8.5px] scale-95 select-none shrink-0 tracking-wider">
-                              DUE SOON
-                            </span>
-                            <span>Occurring within standard 30-minute grace window.</span>
+                              </thead>
+                              <tbody className="divide-y divide-slate-50 dark:divide-slate-850/65">
+                                {earliestBookings.map((b, index) => (
+                                  <tr 
+                                    key={b.id} 
+                                    className={`text-xs text-slate-705 dark:text-slate-300 ${
+                                      index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/40 dark:bg-slate-950/20"
+                                    } hover:bg-slate-50 dark:hover:bg-slate-805/65 hover:scale-[1.01] hover:shadow-2xs transition-all duration-200 ease-in-out origin-left transform cursor-default`}
+                                  >
+                                    <td className="py-3 px-3 whitespace-nowrap font-medium">
+                                      <button 
+                                        onClick={() => {
+                                          setSelectedEarliestBooking(b);
+                                          setIsEditingEarliest(false);
+                                          setEarliestEditForm({ appointmentTime: b.appointmentTime || "", location: b.location || "" });
+                                          setEarliestError("");
+                                        }}
+                                        className="font-mono font-extrabold text-teal-650 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 hover:underline bg-teal-50 dark:bg-teal-950/40 border border-teal-100/70 dark:border-teal-900/40 px-2.5 py-1 rounded cursor-pointer transition-colors text-left"
+                                        title="Click to view full appointment details"
+                                      >
+                                        {b.id}
+                                      </button>
+                                    </td>
+                                    <td className="py-3 px-3 font-mono font-bold whitespace-nowrap">
+                                      <div className="text-slate-900 dark:text-slate-200">{b.appointmentDate}</div>
+                                      <div className="text-slate-500 dark:text-slate-450 text-[11px] font-medium mt-1.5 flex flex-col sm:flex-row sm:items-center gap-1.5">
+                                        <span>{formatTimeWithAMPM(b.appointmentTime)}</span>
+                                        {isBookingDueSoon(b.appointmentDate, b.appointmentTime) && (
+                                          <span className="inline-flex items-center gap-0.5 bg-red-100 border border-red-200 dark:border-red-900 dark:bg-red-950/80 text-red-700 dark:text-red-350 font-extrabold px-1.5 py-0.5 rounded text-[9px] animate-pulse select-none shrink-0" title="Occurring within standard 30 min window!">
+                                            <Clock className="w-2.5 h-2.5" /> DUE SOON
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-3 max-w-[200px] font-medium text-slate-655 dark:text-slate-400">
+                                      <div className="font-bold text-slate-900 dark:text-slate-200">{b.location || "—"}</div>
+                                      {b.location && REALTY_PROJECT_ADDRESSES[b.location] && (
+                                        <div className="text-[10px] text-slate-455 dark:text-slate-550 mt-1 leading-snug font-medium italic">
+                                          Location: {REALTY_PROJECT_ADDRESSES[b.location]}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-3">
+                                      <div className="font-medium">
+                                        <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">ID: {b.clientId}</span>
+                                        <div className="font-bold text-slate-900 dark:text-slate-200">{b.clientName}</div>
+                                        <div className="text-[11px] text-slate-500 dark:text-slate-450 font-mono mt-0.5">{b.clientMobile || "—"}</div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-extrabold text-teal-650 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/40 px-1.5 py-0.5 rounded text-[8.5px] scale-95 select-none shrink-0 tracking-wider">
-                              APT-ID
-                            </span>
-                            <span>Click Booking ID to trigger full schedule details card.</span>
+
+                          {/* Status Legend Indicator */}
+                          <div className="bg-slate-50/40 dark:bg-slate-950/30 rounded-lg p-3 border border-slate-100 dark:border-slate-800/60 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-slate-550 dark:text-slate-400 font-medium">
+                            <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[9px]">Legend Indicators:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-0.5 bg-red-100 border border-red-200 dark:border-red-900 dark:bg-red-950/85 text-red-700 dark:text-red-350 font-extrabold px-1.5 py-0.5 rounded text-[8.5px] scale-95 select-none shrink-0 tracking-wider">
+                                DUE SOON
+                              </span>
+                              <span>Occurring within standard 30-minute grace window.</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-extrabold text-teal-650 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/40 px-1.5 py-0.5 rounded text-[8.5px] scale-95 select-none shrink-0 tracking-wider">
+                                APT-ID
+                              </span>
+                              <span>Click Booking ID to trigger full schedule details card.</span>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-805/80">
+                            <button 
+                              onClick={() => setCurrentTab("bookings")}
+                              className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:text-teal-750 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                            >
+                              View All Appointments <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
-
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-805/80">
-                          <button 
-                            onClick={() => setCurrentTab("bookings")}
-                            className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:text-teal-750 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
-                          >
-                            View All Appointments <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
+                      ) : (
+                        <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100/60 dark:border-slate-800/60 rounded-xl p-6 text-center">
+                          <Calendar className="w-8 h-8 text-slate-400 dark:text-slate-650 mx-auto mb-2 opacity-80" />
+                          <p className="text-xs text-slate-530 dark:text-slate-400 font-bold">No scheduled appointments</p>
+                          <div className="pt-3 border-t border-slate-100/20 mt-3">
+                            <button 
+                              onClick={() => setCurrentTab("bookings")}
+                              className="text-xs font-bold text-teal-600 hover:text-teal-750 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                            >
+                              View All Appointments <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100/60 dark:border-slate-800/60 rounded-xl p-6 text-center">
-                        <Calendar className="w-8 h-8 text-slate-400 dark:text-slate-650 mx-auto mb-2 opacity-80" />
-                        <p className="text-xs text-slate-530 dark:text-slate-400 font-bold">No scheduled appointments</p>
-                        <div className="pt-3 border-t border-slate-100/20 mt-3">
-                          <button 
-                            onClick={() => setCurrentTab("bookings")}
-                            className="text-xs font-bold text-teal-600 hover:text-teal-750 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
-                          >
-                            View All Appointments <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                   {/* Real-time Agent Client Conflicts Alert Card (Client Details Conflicts) */}
                   {!isAdmin && (
@@ -1095,36 +1248,50 @@ export default function App() {
                       Operating Actions Hub
                     </h2>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <button
-                        onClick={() => setCurrentTab("clients")}
-                        className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
-                      >
-                        <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
-                          <UserCheck className="w-4 h-4" />
-                        </div>
-                        <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                          My Clients
-                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                        </h3>
-                        <p className="text-xs text-slate-455 mt-1">Browse client registers, mobile claims, and allocate booking reservation sheets.</p>
-                      </button>
+                    {isAdmin ? (
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <button
+                          onClick={() => setCurrentTab("agents")}
+                          className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
+                            <Users className="w-4 h-4" />
+                          </div>
+                          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
+                            Manage Agent
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                          </h3>
+                          <p className="text-xs text-slate-455 mt-1">Review active brokerage agent licensing status, verify accounts, and track profiles.</p>
+                        </button>
 
-                      <button
-                        onClick={() => setCurrentTab("bookings")}
-                        className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
-                      >
-                        <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
-                          <Calendar className="w-4 h-4" />
-                        </div>
-                        <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                          Check Appointment
-                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                        </h3>
-                        <p className="text-xs text-slate-455 mt-1">Review scheduled client timetables, track statuses, and finalize appointments.</p>
-                      </button>
+                        <button
+                          onClick={() => setCurrentTab("clients")}
+                          className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
+                            <UserCheck className="w-4 h-4" />
+                          </div>
+                          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
+                            Manage Client
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                          </h3>
+                          <p className="text-xs text-slate-455 mt-1">Browse client master listings, examine agent details, and analyze duplicate integrity.</p>
+                        </button>
 
-                      {isAdmin ? (
+                        <button
+                          onClick={() => setCurrentTab("bookings")}
+                          className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
+                            <Calendar className="w-4 h-4" />
+                          </div>
+                          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
+                            My Agent Appointments
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                          </h3>
+                          <p className="text-xs text-slate-455 mt-1">Oversee scheduled site bookings, reservation statuses, and timeline compliance.</p>
+                        </button>
+
                         <button
                           onClick={() => setCurrentTab("conflicts")}
                           className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-amber-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
@@ -1136,15 +1303,45 @@ export default function App() {
                             Integrity Overlaps Queue
                             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
                           </h3>
-                          <p className="text-xs text-slate-450 mt-1">Review side-by-side agent overlays, verify telephone claims, and merge customer files.</p>
+                          <p className="text-xs text-slate-450 mt-1">Resolve double client claims, audit matching attributes, and assign database ownership.</p>
                         </button>
-                      ) : (
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <button
+                          onClick={() => setCurrentTab("clients")}
+                          className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
+                            <UserCheck className="w-4 h-4" />
+                          </div>
+                          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
+                            My Clients
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                          </h3>
+                          <p className="text-xs text-slate-455 mt-1">Browse client registers, mobile claims, and allocate booking reservation sheets.</p>
+                        </button>
+
+                        <button
+                          onClick={() => setCurrentTab("bookings")}
+                          className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
+                            <Calendar className="w-4 h-4" />
+                          </div>
+                          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
+                            Check Appointment
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                          </h3>
+                          <p className="text-xs text-slate-455 mt-1">Review scheduled client timetables, track statuses, and finalize appointments.</p>
+                        </button>
+
                         <button
                           onClick={() => {
                             setAutoOpenAddClient(true);
                             setCurrentTab("clients");
                           }}
-                          className="bg-slate-50 hover:bg-slate-100/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
+                          className="bg-slate-50 hover:bg-slate-105/90 border border-slate-150 hover:border-teal-500 rounded-xl p-4.5 text-left transition-all group cursor-pointer"
                         >
                           <div className="w-8 h-8 rounded bg-teal-50 text-teal-700 flex items-center justify-center font-bold mb-3">
                             <PlusCircle className="w-4 h-4" />
@@ -1155,8 +1352,8 @@ export default function App() {
                           </h3>
                           <p className="text-xs text-slate-455 mt-1">Run fuzzy likeness checking and register new real estate customers instantly.</p>
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* 7-Day Performance Trend Sparkline Card */}
@@ -1265,8 +1462,6 @@ export default function App() {
                   )}
                 </div>
 
-              </div>
-
               {/* Graphical Charts Section */}
               <div className="pt-2">
                 <DashboardCharts 
@@ -1300,6 +1495,8 @@ export default function App() {
               triggerRefreshStamp={refreshStamp}
               autoOpenForm={autoOpenAddClient}
               setAutoOpenForm={setAutoOpenAddClient}
+              onTabChange={setCurrentTab}
+              onSelectConflictId={setSelectedConflictId}
             />
           )}
 
@@ -1312,7 +1509,12 @@ export default function App() {
           )}
 
           {currentTab === "conflicts" && isAdmin && (
-            <ConflictQueue onResolve={forceRefresh} currentUser={currentUser} />
+            <ConflictQueue 
+              onResolve={forceRefresh} 
+              currentUser={currentUser} 
+              initialSelectedConflictId={selectedConflictId}
+              onClearInitialSelectedConflictId={() => setSelectedConflictId(null)}
+            />
           )}
 
           {currentTab === "audit" && isAdmin && (
@@ -1321,6 +1523,18 @@ export default function App() {
 
           {currentTab === "reports" && isAdmin && (
             <ReportsPanel />
+          )}
+
+          {currentTab === "settings" && currentUser && (
+            <ProfileSettings 
+              currentUser={currentUser}
+              onUpdateSession={(updatedDetails) => {
+                const newUser = { ...currentUser, ...updatedDetails };
+                setCurrentUser(newUser);
+                localStorage.setItem("realtysync_user", JSON.stringify(newUser));
+              }}
+              onAddLog={forceRefresh}
+            />
           )}
 
           

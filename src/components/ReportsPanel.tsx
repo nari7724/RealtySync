@@ -293,7 +293,7 @@ export function ReportsPanel() {
                     </td>
                     <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-medium">{item.clientsCount} clients</td>
                     <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-medium">{item.bookingsCount} files</td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-slate-100">PHP {(item.salesVolume).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-slate-100">PHP {(item.salesVolume || 0).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>

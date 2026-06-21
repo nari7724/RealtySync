@@ -440,13 +440,6 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
             <div className="bg-slate-50 border-t border-slate-100 px-5 py-4 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-              >
-                No, Back to Form
-              </button>
-              <button
-                type="button"
                 onClick={submitClient}
                 disabled={loading}
                 className={`px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all inline-flex items-center gap-1.5 shadow-sm hover:shadow cursor-pointer ${
@@ -459,8 +452,15 @@ export function ClientForm({ onSuccess, onCancel, agentsList, currentUser }: Cli
                     Saving...
                   </>
                 ) : (
-                  "Confirm & Save"
+                  "Confirm"
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
               </button>
             </div>
 

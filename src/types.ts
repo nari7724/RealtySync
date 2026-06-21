@@ -16,6 +16,7 @@ export interface User {
   role: UserRole;
   token?: string;
   status: "Active" | "Inactive";
+  forcePasswordChange?: boolean;
 }
 
 export interface Agent {
@@ -67,6 +68,7 @@ export interface Client {
   assignedAgentName: string;
   dateRegistered: string;
   duplicateStatus: "None" | "Possible" | "Strong";
+  status?: string;
 }
 
 export interface DuplicateCheckResult {

@@ -22,7 +22,8 @@ import {
   ClipboardList,
   Flame,
   Globe,
-  ShieldAlert
+  ShieldAlert,
+  HeartCrack
 } from "lucide-react";
 import { Client, Agent, Booking, BookingStatus, UserRole } from "../types.ts";
 import { ClientForm } from "./ClientForm.tsx";
@@ -34,6 +35,8 @@ interface ClientMasterListProps {
   triggerRefreshStamp: number;
   autoOpenForm?: boolean;
   setAutoOpenForm?: (val: boolean) => void;
+  onTabChange?: (tab: string) => void;
+  onSelectConflictId?: (id: string | null) => void;
 }
 
 export function ClientMasterList({ 
@@ -42,7 +45,9 @@ export function ClientMasterList({
   onTriggerForm, 
   triggerRefreshStamp,
   autoOpenForm,
-  setAutoOpenForm
+  setAutoOpenForm,
+  onTabChange,
+  onSelectConflictId
 }: ClientMasterListProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [total, setTotal] = useState(0);
@@ -52,7 +57,7 @@ export function ClientMasterList({
 
   const [search, setSearch] = useState("");
   const [selectedAgent, setSelectedAgent] = useState("");
-  const [selectedDupStatus, setSelectedDupStatus] = useState("");
+  const [selectedDupStatus, setSelectedDupStatus] = useState(currentUser.role === UserRole.ADMIN ? "" : "None");
   const [loading, setLoading] = useState(true);
 
   // Modals status
@@ -253,6 +258,32 @@ export function ClientMasterList({
     });
   };
 
+  const handleSurrenderClaim = async (client: Client) => {
+    setConfirmDialog({
+      title: "Voluntary Claim Surrender",
+      message: `Are you sure you want to voluntarily surrender your claim on '${client.firstName} ${client.lastName}'? This will permanently delete your client registry profile and resolve any overlapping agent conflicts.`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setLoading(true);
+        try {
+          const res = await fetch(`/api/clients/${client.id}/surrender`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userContext: currentUser })
+          });
+          if (res.ok) {
+            fetchClients();
+            fetchDualEntries();
+          }
+        } catch (err) {
+          console.error("Error surrendering claim:", err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
+
   const handleEditOpen = (client: Client) => {
     setEditingClient(client);
     setClientFormData({
@@ -376,8 +407,8 @@ export function ClientMasterList({
             }}
             className="px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-755 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500 min-w-[150px] cursor-pointer"
           >
+			<option value="None">Clean Record</option>
             <option value="">All</option>
-            <option value="None">Clean Record</option>
             <option value="Possible">Possible Duplicates</option>
             <option value="Strong">Strong Duplicates</option>
           </select>
@@ -402,6 +433,9 @@ export function ClientMasterList({
                 <tr className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-slate-804">
                   <th className="px-6 py-4">Client ID</th>
                   <th className="px-6 py-4">Client Information</th>
+                  {currentUser.role === UserRole.ADMIN && (
+                    <th className="px-6 py-4">Agent Details</th>
+                  )}
                   <th className="px-6 py-4">SaaS Overlap Integrity</th>
                   <th className="px-6 py-4 flex-1">Registration Timeline</th>
                   <th className="px-6 py-4 text-center">Actions</th>
@@ -436,6 +470,18 @@ export function ClientMasterList({
                         )}
                       </div>
                     </td>
+                    {currentUser.role === UserRole.ADMIN && (
+                      <td className="px-6 py-4">
+                        <div className="text-xs space-y-1">
+                           <div className="font-bold text-slate-900">
+                             {client.assignedAgentName || "No Agent"}
+                           </div>
+                           <div className="font-mono text-slate-500 text-[10px]">
+                             ID: {client.assignedAgentId || "—"}
+                           </div>
+                         </div>
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-xs">
                       {client.duplicateStatus === "Strong" ? (
                         <button
@@ -475,25 +521,67 @@ export function ClientMasterList({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center items-center gap-2">
-                        <button
-                          onClick={() => handleBookingOpen(client)}
-                          disabled={client.duplicateStatus === "Strong" || client.duplicateStatus === "Possible"}
-                          title={client.duplicateStatus === "Strong" || client.duplicateStatus === "Possible" ? "Please resolve overlap integrity before scheduling an appointment" : "Set an appointment"}
-                          id={`client-book-btn-${client.id}`}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <BookOpen className="w-3.5 h-3.5" />
-                          Set an Appointment
-                        </button>
+                        {client.duplicateStatus === "None" || !client.duplicateStatus ? (
+                          <>
+                            <button
+                              onClick={() => handleBookingOpen(client)}
+                              id={`client-book-btn-${client.id}`}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              Set Appointment
+                            </button>
 
-                        <button
-                          onClick={() => handleEditOpen(client)}
-                          id={`client-edit-btn-${client.id}`}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          Edit
-                        </button>
+                            <button
+                              onClick={() => handleEditOpen(client)}
+                              id={`client-edit-btn-${client.id}`}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+                          </>
+                        ) : (() => {
+                          const matchingDual = allDualEntries.find(d => 
+                            (d.clientIdA === client.id || d.clientIdB === client.id)
+                          );
+                          const isPendingReview = matchingDual ? matchingDual.status === "Pending Review" : false;
+
+                          if (matchingDual && !isPendingReview) {
+                            return (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                {matchingDual.status}
+                              </span>
+                            );
+                          }
+
+                          if (currentUser.role === UserRole.ADMIN) {
+                            return (
+                              <button
+                                onClick={() => {
+                                  if (matchingDual) {
+                                    onSelectConflictId?.(matchingDual.id);
+                                  }
+                                  onTabChange?.("conflicts");
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                Resolve
+                              </button>
+                            );
+                          } else {
+                            return (
+                              <button
+                                onClick={() => handleSurrenderClaim(client)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <HeartCrack className="w-3.5 h-3.5" />
+                                Surrender Claim
+                              </button>
+                            );
+                          }
+                        })()}
                       </div>
                     </td>
                   </tr>
@@ -1083,16 +1171,16 @@ export function ClientMasterList({
               </div>
               <div className="flex justify-end gap-2.5 pt-1">
                 <button
-                  onClick={() => setConfirmDialog(null)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border dark:border-slate-800"
-                >
-                  No, Cancel
-                </button>
-                <button
                   onClick={confirmDialog.onConfirm}
                   className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005a53] transition-all cursor-pointer shadow-sm"
                 >
-                  Confirm & Action
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setConfirmDialog(null)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border dark:border-slate-800"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

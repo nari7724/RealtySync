@@ -18,7 +18,8 @@ import {
   UserX, 
   CreditCard,
   Mail,
-  Smartphone
+  Smartphone,
+  Key
 } from "lucide-react";
 import { Agent } from "../types.ts";
 
@@ -34,6 +35,7 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
   const [statusFilter, setStatusFilter] = useState("");
   
   // Form states
+  const [generatedPasswordModal, setGeneratedPasswordModal] = useState<{ email: string; password?: string; name: string } | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [saving, setSaving] = useState(false);
@@ -128,6 +130,14 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
           });
 
           if (res.ok) {
+            const data = await res.json();
+            if (data.tempPassword) {
+              setGeneratedPasswordModal({
+                email: agent.email,
+                password: data.tempPassword,
+                name: `${agent.firstName} ${agent.lastName}`
+              });
+            }
             fetchAgents();
             onAddLog();
           }
@@ -144,7 +154,7 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.mobileNumber || !formData.prcLicenseNumber) {
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.mobileNumber) {
       setErrorText("Please complete all required fields (*).");
       return;
     }
@@ -177,6 +187,15 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
           if (!res.ok) {
             const errObj = await res.json();
             throw new Error(errObj.error || "Save operation failed.");
+          }
+
+          const data = await res.json();
+          if (data.tempPassword) {
+            setGeneratedPasswordModal({
+              email: formData.email,
+              password: data.tempPassword,
+              name: `${formData.firstName} ${formData.lastName}`
+            });
           }
 
           setShowModal(false);
@@ -443,7 +462,7 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">PRC License Number *</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">PRC License Number (Optional)</label>
                   <input
                     type="text"
                     name="prcLicenseNumber"
@@ -452,7 +471,6 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
                     onChange={handleFormChange}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500"
                     placeholder="e.g. 0023412"
-                    required
                   />
                 </div>
               </div>
@@ -506,6 +524,67 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
                   className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-[#00786f] hover:bg-[#005e57] transition-all cursor-pointer shadow-sm animate-scale-up"
                 >
                   Confirm & Action
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generated Password Modal showing Temporary Credentials */}
+      {generatedPasswordModal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+            <div className="bg-amber-50 px-6 py-4 border-b border-amber-100 flex items-center gap-3">
+              <div className="p-2 rounded-full bg-amber-100 text-amber-800">
+                <Key className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Temporary Credentials Generated</h3>
+                <p className="text-xs text-slate-500">Credentials created for new or reactivated login</p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <p className="leading-relaxed text-slate-600 font-medium">
+                Please copy and share this temporary password securely with <strong className="text-slate-900">{generatedPasswordModal.name}</strong>. They will be prompted to replace this with a secure password upon logging in.
+              </p>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 font-mono text-xs">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400 uppercase tracking-tight text-[10px] font-semibold">User Profile:</span>
+                  <span className="text-slate-850 font-semibold">{generatedPasswordModal.name}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-t border-slate-100">
+                  <span className="text-slate-400 uppercase tracking-tight text-[10px] font-semibold">Login Email:</span>
+                  <span className="text-slate-850 font-bold select-all">{generatedPasswordModal.email}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-t border-slate-100">
+                  <span className="text-slate-400 uppercase tracking-tight text-[10px] font-semibold">Temporary Password:</span>
+                  <span className="bg-amber-100 text-amber-900 px-2.5 py-1 rounded font-extrabold text-sm border border-amber-200 select-all tracking-wider">
+                    {generatedPasswordModal.password}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (generatedPasswordModal.password) {
+                      navigator.clipboard.writeText(generatedPasswordModal.password);
+                    }
+                  }}
+                  className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 font-semibold transition-all cursor-pointer"
+                >
+                  Copy Password
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGeneratedPasswordModal(null)}
+                  className="px-5 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold transition-all cursor-pointer shadow-sm"
+                >
+                  Done, I Have Saved It
                 </button>
               </div>
             </div>

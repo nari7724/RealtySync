@@ -7,10 +7,16 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
+import { createClient } from "@supabase/supabase-js";
+import bcrypt from "bcryptjs";
 import { User, Agent, Client, Booking, Notification, AuditLog, DualEntry, UserRole } from "./src/types.ts";
 import { calculateCombinedDuplicateScore, normalizeAddress } from "./src/utils/matching.ts";
 
-const DB_FILE = path.join(process.cwd(), "realtysync_db.json");
+// Configure Supabase using provided credentials
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://uprykiqtdklubvhmrsai.supabase.co";
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_JNlbM9HDsTj6ihBjoNbFWg_PdhU7aNN";
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
 
 // Define realty projects
 const DEFAULT_REALTY_PROJECTS = [
@@ -22,6 +28,54 @@ const DEFAULT_REALTY_PROJECTS = [
   "Amaia Steps Mandaue",
   "Cebu IT Park Residences",
   "Marco Polo Residences"
+];
+
+const DEFAULT_USERS = [
+  {
+    id: "admin_user",
+    email: "admin@realtysync.com",
+    password: "$2b$10$ri9WNRrB6kqoH6brj3PvoeSasK0/fNaw/VTuux211LD1KPsUU1HHi", // Hashed "admin123"
+    firstName: "Broker",
+    lastName: "Admin",
+    role: "ADMIN",
+    status: "Active"
+  },
+  {
+    id: "AG-SRA8234",
+    email: "sarah.ramirez@realtysync.com",
+    password: "$2b$10$DD.OUobtq5aenL5.9kDJuOiGgWNS9YGMV2UNqgki2N1MbYQOmktDC", // Hashed "agent123"
+    firstName: "Sarah",
+    lastName: "Ramirez",
+    role: "AGENT",
+    status: "Active"
+  },
+  {
+    id: "AG-JBL1234",
+    email: "james.lim@realtysync.com",
+    password: "$2b$10$DD.OUobtq5aenL5.9kDJuOiGgWNS9YGMV2UNqgki2N1MbYQOmktDC", // Hashed "agent123"
+    firstName: "James",
+    lastName: "Lim",
+    role: "AGENT",
+    status: "Active"
+  },
+  {
+    id: "AG-MSA1923",
+    email: "maria.santos@realtysync.com",
+    password: "$2b$10$DD.OUobtq5aenL5.9kDJuOiGgWNS9YGMV2UNqgki2N1MbYQOmktDC", // Hashed "agent123"
+    firstName: "Maria",
+    lastName: "Santos",
+    role: "AGENT",
+    status: "Active"
+  },
+  {
+    id: "AG-MRA3456",
+    email: "mark.ramos@realtysync.com",
+    password: "$2b$10$DD.OUobtq5aenL5.9kDJuOiGgWNS9YGMV2UNqgki2N1MbYQOmktDC", // Hashed "agent123"
+    firstName: "Mark",
+    lastName: "Ramos",
+    role: "AGENT",
+    status: "Inactive"
+  }
 ];
 
 // Generate unique 3 letters 4 numbers alphanumeric ID suffix (total 7 characters)
@@ -368,157 +422,455 @@ function migrateState(state: any): any {
   return state;
 }
 
-// Load database state from disk or initialize with seed data
-function loadDB(): {
-  agents: Agent[];
-  clients: Client[];
-  bookings: Booking[];
-  dualEntries: DualEntry[];
-  notifications: Notification[];
-  auditLogs: AuditLog[];
-  realtyProjects: string[];
-} {
+// Temporary passwords persistent storage helpers
+const TEMP_PASSWORDS_FILE = path.join(process.cwd(), "temp_passwords.json");
+
+function loadTempPasswords(): string[] {
   try {
-    if (fs.existsSync(DB_FILE)) {
-      const data = fs.readFileSync(DB_FILE, "utf-8");
-      const parsed = JSON.parse(data);
-      const state = {
-        agents: Array.isArray(parsed.agents) ? parsed.agents : DEFAULT_AGENTS,
-        clients: Array.isArray(parsed.clients) ? parsed.clients : DEFAULT_CLIENTS,
-        bookings: [], // Clear all appointments/bookings data as requested
-        dualEntries: Array.isArray(parsed.dualEntries) ? parsed.dualEntries : DEFAULT_DUAL_ENTRIES,
-        notifications: Array.isArray(parsed.notifications) ? parsed.notifications : DEFAULT_NOTIFICATIONS,
-        auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : DEFAULT_AUDIT_LOGS,
-        realtyProjects: Array.isArray(parsed.realtyProjects) ? parsed.realtyProjects : DEFAULT_REALTY_PROJECTS,
-      };
-      const migrated = migrateState(state);
-      saveDB(migrated);
-      return migrated;
+    if (fs.existsSync(TEMP_PASSWORDS_FILE)) {
+      const data = fs.readFileSync(TEMP_PASSWORDS_FILE, "utf-8");
+      return JSON.parse(data);
     }
   } catch (err) {
-    console.error("Error loading mock file database, recreating:", err);
+    console.error("Error reading temp passwords list:", err);
   }
-
-  // Create default state
-  const state = {
-    agents: DEFAULT_AGENTS,
-    clients: DEFAULT_CLIENTS,
-    bookings: [], // Clear all appointments/bookings data as requested
-    dualEntries: DEFAULT_DUAL_ENTRIES,
-    notifications: DEFAULT_NOTIFICATIONS,
-    auditLogs: DEFAULT_AUDIT_LOGS,
-    realtyProjects: DEFAULT_REALTY_PROJECTS,
-  };
-  saveDB(state);
-  return state;
+  return [];
 }
 
-function saveDB(state: any) {
+function saveTempPasswords(emails: string[]) {
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(state, null, 2), "utf-8");
+    fs.writeFileSync(TEMP_PASSWORDS_FILE, JSON.stringify(emails, null, 2), "utf-8");
   } catch (err) {
-    console.error("Error writing mock file database:", err);
+    console.error("Error saving temp passwords list:", err);
   }
 }
 
-// Re-evaluates overlaps/conflicts among all clients
-function reevaluateAllClientConflicts() {
-  // Reset all client duplicate statuses first
-  for (const c of db.clients) {
-    c.duplicateStatus = "None";
+function addTempPasswordEmail(email: string) {
+  const list = loadTempPasswords();
+  const clean = email.toLowerCase().trim();
+  if (!list.includes(clean)) {
+    list.push(clean);
+    saveTempPasswords(list);
+  }
+}
+
+function removeTempPasswordEmail(email: string) {
+  const list = loadTempPasswords();
+  const clean = email.toLowerCase().trim();
+  const filtered = list.filter(e => e !== clean);
+  if (list.length !== filtered.length) {
+    saveTempPasswords(filtered);
+  }
+}
+
+function isTempPasswordEmail(email: string): boolean {
+  const list = loadTempPasswords();
+  return list.includes(email.toLowerCase().trim());
+}
+
+function generateRandomPassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  let pwd = "RS-";
+  for (let i = 0; i < 8; i++) {
+    pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return pwd;
+}
+
+function simulateEmailSend(email: string, subject: string, body: string) {
+  console.log("\n=======================================================");
+  console.log(`[EMAIL DISPATCH SYSTEM LOG]`);
+  console.log(`To: ${email}`);
+  console.log(`Subject: ${subject}`);
+  console.log(`Body:\n${body}`);
+  console.log("=======================================================\n");
+}
+
+// Seeding function for first-time startup if databases are empty
+async function seedSupabaseIfNeeded() {
+  console.log("Checking if Supabase database needs seeding...");
+  
+  // 1. Realty Projects
+  try {
+    const { data, error } = await supabase.from("realty_projects").select("name");
+    if (error || !data || data.length === 0) {
+      console.log("Seeding realty projects into Supabase...");
+      for (const name of DEFAULT_REALTY_PROJECTS) {
+        await supabase.from("realty_projects").insert({ name });
+      }
+    }
+  } catch (err: any) {
+    console.log("Notice: Failed to seed realty_projects:", err.message || err);
   }
 
-  // Set to track clients with active conflict
-  const activeConflictClients = new Set<string>();
+  // 2. Agents
+  try {
+    const { data, error } = await supabase.from("agents").select("id");
+    if (error || !data || data.length === 0) {
+      console.log("Seeding agents into Supabase...");
+      await supabase.from("agents").insert(DEFAULT_AGENTS);
+    }
+  } catch (err: any) {
+    console.log("Notice: Failed to seed agents:", err.message || err);
+  }
 
-  // Compare every distinct pair of clients
-  for (let i = 0; i < db.clients.length; i++) {
-    for (let j = i + 1; j < db.clients.length; j++) {
-      const c1 = db.clients[i];
-      const c2 = db.clients[j];
-      const check = calculateCombinedDuplicateScore(c1, c2);
-      
-      if (check.score >= 70) {
-        activeConflictClients.add(c1.id);
-        activeConflictClients.add(c2.id);
+  // 3. Clients
+  try {
+    const { data, error } = await supabase.from("clients").select("id");
+    if (error || !data || data.length === 0) {
+      console.log("Seeding clients into Supabase...");
+      await supabase.from("clients").insert(DEFAULT_CLIENTS);
+    }
+  } catch (err: any) {
+    console.log("Notice: Failed to seed clients:", err.message || err);
+  }
 
-        const overlapStatus = check.score >= 90 ? "Strong" : "Possible";
-        if (c1.duplicateStatus === "None" || (overlapStatus === "Strong" && c1.duplicateStatus === "Possible")) {
+  // 4. Bookings
+  try {
+    const { data, error } = await supabase.from("bookings").select("id");
+    if (error || !data || data.length === 0) {
+      console.log("Seeding bookings into Supabase...");
+      await supabase.from("bookings").insert(DEFAULT_BOOKINGS);
+    }
+  } catch (err: any) {
+    console.log("Notice: Failed to seed bookings:", err.message || err);
+  }
+
+  // 5. Dual Entries
+  try {
+    const { data, error } = await supabase.from("dual_entries").select("id");
+    if (error || !data || data.length === 0) {
+      console.log("Seeding dual entries into Supabase...");
+      const safeDualEntries = DEFAULT_DUAL_ENTRIES.map(d => ({
+        ...d,
+        details: typeof d.details === "object" ? JSON.stringify(d.details) : d.details
+      }));
+      await supabase.from("dual_entries").insert(safeDualEntries);
+    }
+  } catch (err: any) {
+    console.log("Notice: Failed to seed dual_entries:", err.message || err);
+  }
+
+  // 6. Notifications
+  try {
+    const { data, error } = await supabase.from("notifications").select("id");
+    if (error || !data || data.length === 0) {
+      console.log("Seeding notifications into Supabase...");
+      await supabase.from("notifications").insert(DEFAULT_NOTIFICATIONS);
+    }
+  } catch (err: any) {
+    console.log("Notice: Failed to seed notifications:", err.message || err);
+  }
+
+  // 7. Audit Logs
+  try {
+    const { data, error } = await supabase.from("audit_logs").select("id");
+    if (error || !data || data.length === 0) {
+      console.log("Seeding audit logs into Supabase...");
+      await supabase.from("audit_logs").insert(DEFAULT_AUDIT_LOGS);
+    }
+  } catch (err: any) {
+    console.log("Notice: Failed to seed audit_logs:", err.message || err);
+  }
+
+  // 8. Authenticated Users (Verify & seed default accounts)
+  try {
+    const { data, error } = await supabase.from("users").select("id");
+    if (error || !data || data.length === 0) {
+      console.log("Seeding default authenticated users into Supabase 'users' table...");
+      await supabase.from("users").insert(DEFAULT_USERS);
+    }
+  } catch (err: any) {
+    console.log("Notice: Failed to seed authenticated users:", err.message || err);
+  }
+
+  console.log("Supabase seed check completed!");
+}
+
+// Mappings and helper to safely normalize case issues from Postgres/Supabase schemas
+const AGENT_MAPPINGS = {
+  firstname: "firstName",
+  middlename: "middleName",
+  lastname: "lastName",
+  mobilenumber: "mobileNumber",
+  prclicensenumber: "prcLicenseNumber",
+  createdat: "createdAt",
+};
+
+const CLIENT_MAPPINGS = {
+  firstname: "firstName",
+  middlename: "middleName",
+  lastname: "lastName",
+  mobilenumber: "mobileNumber",
+  facebookprofilelink: "facebookProfileLink",
+  sourceoflead: "sourceOfLead",
+  assignedagentid: "assignedAgentId",
+  assignedagentname: "assignedAgentName",
+  dateregistered: "dateRegistered",
+  duplicatestatus: "duplicateStatus",
+};
+
+const BOOKING_MAPPINGS = {
+  clientid: "clientId",
+  clientname: "clientName",
+  clientmobile: "clientMobile",
+  agentid: "agentId",
+  agentname: "agentName",
+  appointmenttype: "appointmentType",
+  appointmentdate: "appointmentDate",
+  appointmenttime: "appointmentTime",
+  datetime: "dateTime",
+  createdat: "createdAt",
+};
+
+const DUAL_ENTRY_MAPPINGS = {
+  clientname: "clientName",
+  clientida: "clientIdA",
+  clientidb: "clientIdB",
+  agentida: "agentIdA",
+  agentnamea: "agentNameA",
+  agentidb: "agentIdB",
+  agentnameb: "agentNameB",
+  datea: "dateA",
+  dateb: "dateB",
+  similarityscore: "similarityScore",
+};
+
+const NOTIFICATION_MAPPINGS = {
+  agentid: "agentId",
+  clientid: "clientId",
+};
+
+const AUDIT_LOG_MAPPINGS = {
+  userid: "userId",
+  useremail: "userEmail",
+  username: "userName",
+  userrole: "userRole",
+  previousvalue: "previousValue",
+  newvalue: "newValue",
+};
+
+function normalizeKeys<T extends Record<string, any>>(obj: T, mappings: Record<string, string>): T {
+  if (!obj || typeof obj !== "object") return obj;
+  const result = { ...obj } as any;
+  for (const [lowerKey, camelKey] of Object.entries(mappings)) {
+    if (obj[lowerKey] !== undefined && obj[camelKey] === undefined) {
+      result[camelKey] = obj[lowerKey];
+    }
+  }
+  return result;
+}
+
+// Fetch helper functions that read directly from Supabase
+async function fetchAgents(): Promise<Agent[]> {
+  const { data, error } = await supabase.from("agents").select("*");
+  if (error) {
+    console.error("Supabase error fetching agents:", error);
+    throw error;
+  }
+  return (data || []).map(a => normalizeKeys<Agent>(a, AGENT_MAPPINGS));
+}
+
+async function fetchClients(): Promise<Client[]> {
+  const { data, error } = await supabase.from("clients").select("*");
+  if (error) {
+    console.error("Supabase error fetching clients:", error);
+    throw error;
+  }
+  return (data || []).map(c => normalizeKeys<Client>(c, CLIENT_MAPPINGS));
+}
+
+async function fetchBookings(): Promise<Booking[]> {
+  const { data, error } = await supabase.from("bookings").select("*");
+  if (error) {
+    console.error("Supabase error fetching bookings:", error);
+    throw error;
+  }
+  return (data || []).map(b => normalizeKeys<Booking>(b, BOOKING_MAPPINGS));
+}
+
+async function fetchDualEntries(): Promise<DualEntry[]> {
+  const { data, error } = await supabase.from("dual_entries").select("*");
+  if (error) {
+    console.error("Supabase error fetching dual_entries:", error);
+    throw error;
+  }
+  return (data || []).map(d => {
+    const norm = normalizeKeys<DualEntry>(d, DUAL_ENTRY_MAPPINGS);
+    if (norm.details && typeof norm.details === "string") {
+      try {
+        norm.details = JSON.parse(norm.details);
+      } catch (_) {}
+    }
+    return norm;
+  });
+}
+
+async function fetchNotifications(): Promise<Notification[]> {
+  const { data, error } = await supabase.from("notifications").select("*");
+  if (error) {
+    console.error("Supabase error fetching notifications:", error);
+    throw error;
+  }
+  return (data || []).map(n => normalizeKeys<Notification>(n, NOTIFICATION_MAPPINGS));
+}
+
+async function fetchAuditLogs(): Promise<AuditLog[]> {
+  const { data, error } = await supabase.from("audit_logs").select("*");
+  if (error) {
+    console.error("Supabase error fetching audit_logs:", error);
+    throw error;
+  }
+  return (data || []).map(l => normalizeKeys<AuditLog>(l, AUDIT_LOG_MAPPINGS));
+}
+
+async function fetchRealtyProjects(): Promise<string[]> {
+  const { data, error } = await supabase.from("realty_projects").select("name");
+  if (error) {
+    console.error("Supabase error fetching realty_projects:", error);
+    return [...DEFAULT_REALTY_PROJECTS];
+  }
+  return (data && data.length > 0) ? data.map(p => p.name) : [...DEFAULT_REALTY_PROJECTS];
+}
+
+
+// Re-evaluates overlaps/conflicts among all clients in Supabase
+async function reevaluateAllClientConflicts() {
+  try {
+    const clients = await fetchClients();
+    const dualEntries = await fetchDualEntries();
+
+    // Reset duplicate statuses on clients first (or keep track in memory to update in bulk)
+    const clientUpdates: Record<string, Client> = {};
+    for (const c of clients) {
+      if (c.duplicateStatus !== "None") {
+        c.duplicateStatus = "None";
+        clientUpdates[c.id] = c;
+      }
+    }
+
+    const dualEntriesToUpsert: DualEntry[] = [];
+    const dualEntriesToDelete: string[] = [];
+
+    // Compare every distinct pair of clients
+    for (let i = 0; i < clients.length; i++) {
+      for (let j = i + 1; j < clients.length; j++) {
+        const c1 = clients[i];
+        const c2 = clients[j];
+
+        // Skip surrendered claims
+        if (c1.status === "Surrendered Claim" || c2.status === "Surrendered Claim") {
+          continue;
+        }
+
+        const check = calculateCombinedDuplicateScore(c1, c2);
+        
+        if (check.score >= 70) {
+          const overlapStatus = check.score >= 90 ? "Strong" : "Possible";
+          
           c1.duplicateStatus = overlapStatus;
-        }
-        if (c2.duplicateStatus === "None" || (overlapStatus === "Strong" && c2.duplicateStatus === "Possible")) {
           c2.duplicateStatus = overlapStatus;
-        }
+          clientUpdates[c1.id] = c1;
+          clientUpdates[c2.id] = c2;
 
-        // Add or update DualEntry (conflict queue item)
-        const dualIndex = db.dualEntries.findIndex(d => 
-          (d.clientIdA === c1.id && d.clientIdB === c2.id) ||
-          (d.clientIdA === c2.id && d.clientIdB === c1.id)
-        );
+          // Add or update DualEntry (conflict queue item)
+          const existingDual = dualEntries.find(d => 
+            (d.clientIdA === c1.id && d.clientIdB === c2.id) ||
+            (d.clientIdA === c2.id && d.clientIdB === c1.id)
+          );
 
-        if (dualIndex === -1) {
-          const dualEntry: DualEntry = {
-            id: generateUniqueId("CON"),
-            clientName: `${c2.firstName} ${c2.lastName}`,
-            clientIdA: c1.id,
-            clientIdB: c2.id,
-            agentIdA: c1.assignedAgentId,
-            agentNameA: c1.assignedAgentName,
-            agentIdB: c2.assignedAgentId,
-            agentNameB: c2.assignedAgentName,
-            dateA: c1.dateRegistered,
-            dateB: c2.dateRegistered,
-            similarityScore: check.score,
-            status: "Pending Review",
-            details: {
-              clientA: c1,
-              clientB: c2,
+          if (!existingDual) {
+            const dualEntry: DualEntry = {
+              id: generateUniqueId("CON"),
+              clientName: `${c2.firstName} ${c2.lastName}`,
+              clientIdA: c1.id,
+              clientIdB: c2.id,
+              agentIdA: c1.assignedAgentId,
+              agentNameA: c1.assignedAgentName,
+              agentIdB: c2.assignedAgentId,
+              agentNameB: c2.assignedAgentName,
+              dateA: c1.dateRegistered,
+              dateB: c2.dateRegistered,
+              similarityScore: check.score,
+              status: "Pending Review",
+              details: {
+                clientA: c1,
+                clientB: c2,
+                differences: {
+                  name: `${c1.firstName} ${c1.lastName}`.toLowerCase() !== `${c2.firstName} ${c2.lastName}`.toLowerCase(),
+                  phone: c1.mobileNumber !== c2.mobileNumber,
+                  address: normalizeAddress(c1.address) !== normalizeAddress(c2.address)
+                }
+              }
+            };
+            dualEntriesToUpsert.push(dualEntry);
+          } else {
+            existingDual.similarityScore = check.score;
+            existingDual.details = {
+              clientA: existingDual.clientIdA === c1.id ? c1 : c2,
+              clientB: existingDual.clientIdB === c2.id ? c2 : c1,
               differences: {
                 name: `${c1.firstName} ${c1.lastName}`.toLowerCase() !== `${c2.firstName} ${c2.lastName}`.toLowerCase(),
                 phone: c1.mobileNumber !== c2.mobileNumber,
                 address: normalizeAddress(c1.address) !== normalizeAddress(c2.address)
               }
-            }
-          };
-          db.dualEntries.unshift(dualEntry);
+            };
+            dualEntriesToUpsert.push(existingDual);
+          }
         } else {
-          db.dualEntries[dualIndex].similarityScore = check.score;
-          db.dualEntries[dualIndex].details = {
-            clientA: db.dualEntries[dualIndex].clientIdA === c1.id ? c1 : c2,
-            clientB: db.dualEntries[dualIndex].clientIdB === c2.id ? c2 : c1,
-            differences: {
-              name: `${c1.firstName} ${c1.lastName}`.toLowerCase() !== `${c2.firstName} ${c2.lastName}`.toLowerCase(),
-              phone: c1.mobileNumber !== c2.mobileNumber,
-              address: normalizeAddress(c1.address) !== normalizeAddress(c2.address)
-            }
-          };
-        }
-      } else {
-        // If there was an existing DualEntry but score is now < 70, remove it
-        const dualIndex = db.dualEntries.findIndex(d => 
-          (d.clientIdA === c1.id && d.clientIdB === c2.id) ||
-          (d.clientIdA === c2.id && d.clientIdB === c1.id)
-        );
-        if (dualIndex !== -1) {
-          db.dualEntries.splice(dualIndex, 1);
+          // If there was an existing DualEntry but score is now < 70, delete it
+          const existingDual = dualEntries.find(d => 
+            (d.clientIdA === c1.id && d.clientIdB === c2.id) ||
+            (d.clientIdA === c2.id && d.clientIdB === c1.id)
+          );
+          if (existingDual) {
+            dualEntriesToDelete.push(existingDual.id);
+          }
         }
       }
     }
+
+    // Update clients
+    for (const c of Object.values(clientUpdates)) {
+      const payload = mapToDb(c, CLIENT_MAPPINGS);
+      await supabase.from("clients").update(payload).eq("id", c.id);
+    }
+
+    // Upsert dual entries
+    for (const d of dualEntriesToUpsert) {
+      const payload = mapToDb(d, DUAL_ENTRY_MAPPINGS);
+      payload.details = typeof d.details === "object" ? JSON.stringify(d.details) : d.details;
+      await supabase.from("dual_entries").upsert(payload);
+    }
+
+    // Delete inactive dual entries
+    for (const id of dualEntriesToDelete) {
+      await supabase.from("dual_entries").delete().eq("id", id);
+    }
+
+    // Prune invalid dual entries (where clients don't exist)
+    const latestClients = await fetchClients();
+    const latestDualEntries = await fetchDualEntries();
+    for (const d of latestDualEntries) {
+      const hasA = latestClients.some(c => c.id === d.clientIdA);
+      const hasB = latestClients.some(c => c.id === d.clientIdB);
+      if (!hasA || !hasB) {
+        await supabase.from("dual_entries").delete().eq("id", d.id);
+      }
+    }
+  } catch (err) {
+    console.error("reevaluateAllClientConflicts error:", err);
   }
-
-  // Any remaining dualEntries where details/references don't exist anymore should be pruned
-  db.dualEntries = db.dualEntries.filter(d => {
-    const hasA = db.clients.some(c => c.id === d.clientIdA);
-    const hasB = db.clients.some(c => c.id === d.clientIdB);
-    return hasA && hasB;
-  });
 }
-
-// Memory database instance
-let db = loadDB();
 
 // Build custom server
 async function startServer() {
+  // Sync state from Supabase Cloud Database on startup asynchronously
+  // so it does not block the port binding and cause gateway timeouts.
+  seedSupabaseIfNeeded().catch((err) => {
+    console.error("Async startup seed check failed:", err);
+  });
+
   const app = express();
   const PORT = 3000;
 
@@ -538,64 +890,140 @@ async function startServer() {
 
   // --- API ROUTING COMPLYING TO FULL-STACK SPEC ---
 
-  // Auth Endpoint (Remember-Me & role payload simulated)
-  app.post("/api/auth/login", (req, res) => {
-    const { email, role, password } = req.body;
+  // Auth Endpoint (Real Stateless Password Verification via Bcrypt & Supabase)
+  app.post("/api/auth/login", async (req, res) => {
+    const { email, password } = req.body;
+    const cleanEmail = (email || "").toLowerCase().trim();
     
-    // Default system credentials
-    if (email === "admin@realtysync.com") {
-      const token = "admin-secret-token";
-      return res.json({
-        id: "admin_user",
-        email: "admin@realtysync.com",
-        firstName: "Broker",
-        lastName: "Admin",
-        role: UserRole.ADMIN,
-        status: "Active",
-        token
-      });
+    if (!cleanEmail || !password) {
+      return res.status(400).json({ error: "Email and password are required." });
     }
 
-    // Check agents list
-    const agent = db.agents.find(a => a.email.toLowerCase() === email?.toLowerCase());
-    if (agent) {
-      if (agent.status === "Inactive") {
-        return res.status(403).json({ error: "Access Denied: This Agent account has been deactivated." });
+    try {
+      // Query our users table on Supabase
+      const { data: supaUser, error: supaErr } = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", cleanEmail)
+        .maybeSingle();
+
+      let matchedUser = supaUser;
+      if (!matchedUser) {
+        // Fallback: Check our secure DEFAULT_USERS seed list
+        matchedUser = DEFAULT_USERS.find(u => u.email.toLowerCase().trim() === cleanEmail);
       }
+
+      if (!matchedUser) {
+        return res.status(401).json({ error: "Access Denied: Invalid email address or user not found." });
+      }
+
+      // Enforce secure password matching via bcrypt
+      let isMatch = false;
+      try {
+        isMatch = bcrypt.compareSync(password, matchedUser.password);
+      } catch (_) {
+        // Fallback to strict string check if bcrypt parsing fails for non-hashed legacy passwords
+        isMatch = matchedUser.password === password;
+      }
+
+      if (!isMatch) {
+         return res.status(401).json({ error: "Access Denied: Invalid password." });
+      }
+      
+      if (matchedUser.status === "Inactive") {
+        return res.status(401).json({ error: "Access Denied: This account has been deactivated." });
+      }
+
+      // Normalize fields (e.g. firstName / lastName / middleName)
+      const firstNameMapped = matchedUser.firstName || matchedUser.firstname || "";
+      const lastNameMapped = matchedUser.lastName || matchedUser.lastname || "";
+      const isForceChange = isTempPasswordEmail(cleanEmail);
+
       return res.json({
-        id: agent.id,
-        email: agent.email,
-        firstName: agent.firstName,
-        lastName: agent.lastName,
-        role: UserRole.AGENT,
-        status: "Active",
-        token: `agent-token-${agent.id}`
+        id: matchedUser.id,
+        email: matchedUser.email,
+        firstName: firstNameMapped,
+        lastName: lastNameMapped,
+        role: matchedUser.role as UserRole,
+        status: matchedUser.status,
+        forcePasswordChange: isForceChange,
+        token: `${matchedUser.role.toLowerCase()}-token-${matchedUser.id}`
       });
+    } catch (err: any) {
+      console.error("Supabase authentication failed:", err);
+      return res.status(500).json({ error: "Internal Authentication Error: Please check Supabase credentials." });
+    }
+  });
+
+  // Endpoints for password changes
+  app.post("/api/auth/change-password", async (req, res) => {
+    const { userId, oldPassword, newPassword } = req.body;
+
+    if (!userId || !newPassword) {
+      return res.status(400).json({ error: "User ID and new password are required." });
     }
 
-    // Generic login for testing
-    if (role === UserRole.ADMIN) {
-      return res.json({
-        id: "admin_user",
-        email: email || "admin@realtysync.com",
-        firstName: "Broker",
-        lastName: "Owner",
-        role: UserRole.ADMIN,
-        token: "admin-secret-token",
-        status: "Active"
-      });
-    } else {
-      // Find or create fallback active agent
-      const customAgent = db.agents[0];
-      return res.json({
-        id: customAgent.id,
-        email: email || customAgent.email,
-        firstName: customAgent.firstName,
-        lastName: customAgent.lastName,
-        role: UserRole.AGENT,
-        token: `agent-token-${customAgent.id}`,
-        status: "Active"
-      });
+    try {
+      // Find the user on Supabase auth users
+      const { data: user, error: userErr } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+
+      let matchedUser = user;
+      if (!matchedUser) {
+        matchedUser = DEFAULT_USERS.find(u => u.id === userId);
+      }
+
+      if (!matchedUser) {
+        return res.status(404).json({ error: "User account profile not found." });
+      }
+
+      // If they provide oldPassword, verify it for standard non-forced flows
+      if (oldPassword) {
+        let isMatch = false;
+        try {
+          isMatch = bcrypt.compareSync(oldPassword, matchedUser.password);
+        } catch (_) {
+          isMatch = matchedUser.password === oldPassword;
+        }
+
+        if (!isMatch) {
+          return res.status(400).json({ error: "Incorrect current or temporary password." });
+        }
+      }
+
+      const hash = bcrypt.hashSync(newPassword, 10);
+
+      // Save updated password on remote Supabase and local representation if any
+      const { error: updErr } = await supabase
+        .from("users")
+        .update({ password: hash })
+        .eq("id", userId);
+
+      if (updErr) {
+        console.warn("Notice: users update returned error, falling back locally:", updErr.message);
+      }
+
+      // Remove from isTemporary file
+      removeTempPasswordEmail(matchedUser.email);
+
+      writeLog(
+        userId,
+        matchedUser.email,
+        `${matchedUser.firstName} ${matchedUser.lastName}`,
+        matchedUser.role as UserRole,
+        "Password Security Reset",
+        `User renewed their security password credentials`,
+        "*****",
+        "*****"
+      );
+
+      return res.json({ success: true, message: "Your security credentials have been updated!" });
+    } catch (err: any) {
+      console.error("Change password error:", err);
+      return res.status(500).json({ error: "Failed to update security password. Clear connections and retry." });
     }
   });
 
@@ -860,6 +1288,74 @@ async function startServer() {
     res.json(db.clients[index]);
   });
 
+  app.post("/api/clients/:id/surrender", (req, res) => {
+    const { id } = req.params;
+    const { userContext } = req.body;
+
+    const agentId = userContext?.id || "unknown_agent";
+    const agentName = userContext?.userName || "Agent Representative";
+    const agentEmail = userContext?.email || "agent@realtysync.com";
+
+    const clientIndex = db.clients.findIndex(c => c.id === id);
+    if (clientIndex === -1) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+
+    const client = db.clients[clientIndex];
+    const previousStateString = JSON.stringify(client);
+
+    // Find the dual entry associated with this client that is pending review
+    const dualIndex = db.dualEntries.findIndex(d => 
+      (d.clientIdA === id || d.clientIdB === id) && 
+      d.status === "Pending Review"
+    );
+
+    if (dualIndex !== -1) {
+      const dual = db.dualEntries[dualIndex];
+      const previousDualState = JSON.stringify(dual);
+
+      // Determine the winner client (the one that is NOT this surrendered client)
+      const otherClientId = dual.clientIdA === id ? dual.clientIdB : dual.clientIdA;
+      const otherClientIndex = db.clients.findIndex(c => c.id === otherClientId);
+
+      // Resolve the dual entry
+      dual.status = "Resolved";
+      // Clear duplicate status on the remaining winner client
+      if (otherClientIndex !== -1) {
+        db.clients[otherClientIndex].duplicateStatus = "None";
+      }
+
+      writeLog(
+        agentId,
+        agentEmail,
+        agentName,
+        UserRole.AGENT,
+        "Voluntary Claim Surrender & Resolve",
+        `Agent surrendered claim on client '${client.firstName} ${client.lastName}'. Conflicting entry resolved.`,
+        previousDualState,
+        JSON.stringify(dual)
+      );
+    }
+
+    // Do not delete client record when being surrendered just update status to "Surrendered Claim"
+    client.status = "Surrendered Claim";
+    client.duplicateStatus = "None"; // Clear duplicate check since they are surrendering
+
+    writeLog(
+      agentId,
+      agentEmail,
+      agentName,
+      UserRole.AGENT,
+      "Client Claim Surrendered",
+      `Updated client profile '${client.firstName} ${client.lastName}' status to 'Surrendered Claim' due to agent voluntary claim surrender`,
+      previousStateString,
+      JSON.stringify(client)
+    );
+
+    saveDB(db);
+    res.json({ success: true });
+  });
+
   // 3. AGENT MODULE ENDPOINTS
   app.get("/api/agents", (req, res) => {
     const { search, status } = req.query;
@@ -871,7 +1367,7 @@ async function startServer() {
         `${a.firstName} ${a.middleName || ""} ${a.lastName}`.toLowerCase().includes(q) ||
         a.email.toLowerCase().includes(q) ||
         a.mobileNumber.includes(q) ||
-        a.prcLicenseNumber.includes(q)
+        (a.prcLicenseNumber || "").toLowerCase().includes(q)
       );
     }
 
@@ -882,7 +1378,7 @@ async function startServer() {
     res.json(list);
   });
 
-  app.post("/api/agents", (req, res) => {
+  app.post("/api/agents", async (req, res) => {
     const { firstName, middleName, lastName, email, mobileNumber, prcLicenseNumber, userContext } = req.body;
 
     // Check duplicate email
@@ -897,10 +1393,50 @@ async function startServer() {
       lastName,
       email,
       mobileNumber,
-      prcLicenseNumber,
+      prcLicenseNumber: prcLicenseNumber || "",
       status: "Active",
       createdAt: new Date().toISOString()
     };
+
+    // Generate random temporary password
+    const tempPassword = generateRandomPassword();
+    const hash = bcrypt.hashSync(tempPassword, 10);
+    
+    // Track as temporary password account
+    addTempPasswordEmail(email);
+
+    // Save user credentials into remote Supabase users table
+    try {
+      await supabase.from("users").insert({
+        id: newAgent.id,
+        email: email.toLowerCase().trim(),
+        password: hash,
+        firstName: firstName,
+        lastName: lastName,
+        role: "AGENT",
+        status: "Active"
+      });
+    } catch (dbErr: any) {
+      console.warn("Notice: users table sync returned error, fallback locally:", dbErr.message);
+    }
+
+    // Simulate email dispatch
+    simulateEmailSend(
+      email,
+      "Welcome to RealtySync! Your Account Credentials",
+      `Hi ${firstName},\n\nAn agent profile has been registered for you at RealtySync.\nYour temporary login credentials are:\n\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nFor security reasons, you will be required to change your password on your first login.\n\nBest Regards,\nRealtySync Administrator`
+    );
+
+    // Also push real-time in-app notification
+    const notification: Notification = {
+      id: "notif_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+      title: "Temporary Account Credentials Generated",
+      message: `System generated temporary credentials for user ${email}. Temporary Password: ${tempPassword}`,
+      timestamp: new Date().toISOString(),
+      read: false,
+      type: "ALERT"
+    };
+    db.notifications.unshift(notification);
 
     db.agents.unshift(newAgent);
 
@@ -910,16 +1446,17 @@ async function startServer() {
       userContext?.userName || "Admin",
       UserRole.ADMIN,
       "Agent Account Created",
-      `Agent: ${newAgent.firstName} ${newAgent.lastName}`,
+      `Agent: ${newAgent.firstName} ${newAgent.lastName}. Temporary password generated and email dispatched.`,
       null,
       newAgent
     );
 
     saveDB(db);
-    res.status(201).json(newAgent);
+    // Return tempPassword in response for Admin easy access
+    res.status(201).json({ ...newAgent, tempPassword });
   });
 
-  app.put("/api/agents/:id", (req, res) => {
+  app.put("/api/agents/:id", async (req, res) => {
     const { id } = req.params;
     const { firstName, middleName, lastName, email, mobileNumber, prcLicenseNumber, status, userContext } = req.body;
 
@@ -929,6 +1466,9 @@ async function startServer() {
     }
 
     const previousValue = { ...db.agents[index] };
+    const isReactivating = status === "Active" && previousValue.status === "Inactive";
+
+    let tempPassword = "";
 
     // Soft delete / status toggling is updated natively here
     db.agents[index] = {
@@ -942,6 +1482,62 @@ async function startServer() {
       status: status ?? db.agents[index].status,
     };
 
+    // If reactivating, update/save credentials and generate temporary password
+    if (isReactivating) {
+      tempPassword = generateRandomPassword();
+      const hash = bcrypt.hashSync(tempPassword, 10);
+      addTempPasswordEmail(db.agents[index].email);
+
+      try {
+        await supabase.from("users").upsert({
+          id: id,
+          email: db.agents[index].email.toLowerCase().trim(),
+          password: hash,
+          firstName: db.agents[index].firstName,
+          lastName: db.agents[index].lastName,
+          role: "AGENT",
+          status: "Active"
+        });
+      } catch (dbErr: any) {
+        console.warn("Notice: Reactivation user sync returned error:", dbErr.message);
+      }
+
+      // Live notification
+      const notification: Notification = {
+        id: "notif_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+        title: "Agent Reactivated Credentials Reset",
+        message: `System reset login credentials for reactivated agent ${db.agents[index].firstName} ${db.agents[index].lastName}. Temporary Password: ${tempPassword}`,
+        timestamp: new Date().toISOString(),
+        read: false,
+        type: "ALERT"
+      };
+      db.notifications.unshift(notification);
+
+      simulateEmailSend(
+        db.agents[index].email,
+        "RealtySync Account Reactivated",
+        `Hi ${db.agents[index].firstName},\n\nYour RealtySync agent account has been reactivated.\nYour temporary password is:\n\nTemporary Password: ${tempPassword}\n\nYou will be required to change your password upon logging in.\n\nBest Regards,\nRealtySync Administrator`
+      );
+    } else if (status === "Inactive" && previousValue.status === "Active") {
+      // Deactivate credentials
+      try {
+        await supabase.from("users").update({ status: "Inactive" }).eq("id", id);
+      } catch (dbErr: any) {
+        console.warn("Notice: deactivation credentials sync error:", dbErr.message);
+      }
+    } else {
+      // Just update names in users table if updated
+      try {
+        await supabase.from("users").update({
+          firstName: db.agents[index].firstName,
+          lastName: db.agents[index].lastName,
+          status: db.agents[index].status
+        }).eq("id", id);
+      } catch (dbErr: any) {
+        console.warn("Notice: profile sync error:", dbErr.message);
+      }
+    }
+
     // Log the event
     const actionText = status && status !== previousValue.status
       ? (status === "Inactive" ? "Agent Account Deactivated" : "Agent Account Reactivated")
@@ -953,7 +1549,52 @@ async function startServer() {
       userContext?.userName || "Admin",
       UserRole.ADMIN,
       actionText,
-      `Agent: ${db.agents[index].firstName} ${db.agents[index].lastName}`,
+      `Agent: ${db.agents[index].firstName} ${db.agents[index].lastName}. ${tempPassword ? "Temporary password reset." : ""}`,
+      previousValue,
+      db.agents[index]
+    );
+
+    saveDB(db);
+    res.json({ ...db.agents[index], tempPassword });
+  });
+
+  // Self Profile Update endpoint for agents
+  app.put("/api/agents/:id/profile", async (req, res) => {
+    const { id } = req.params;
+    const { firstName, middleName, lastName, mobileNumber, prcLicenseNumber } = req.body;
+
+    const index = db.agents.findIndex(a => a.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: "Agent profile record not found." });
+    }
+
+    const previousValue = { ...db.agents[index] };
+
+    db.agents[index] = {
+      ...db.agents[index],
+      firstName: firstName ?? db.agents[index].firstName,
+      middleName: middleName ?? db.agents[index].middleName,
+      lastName: lastName ?? db.agents[index].lastName,
+      mobileNumber: mobileNumber ?? db.agents[index].mobileNumber,
+      prcLicenseNumber: prcLicenseNumber !== undefined ? prcLicenseNumber : db.agents[index].prcLicenseNumber,
+    };
+
+    try {
+      await supabase.from("users").update({
+        firstName: db.agents[index].firstName,
+        lastName: db.agents[index].lastName
+      }).eq("id", id);
+    } catch (syncErr: any) {
+      console.warn("Notice: profile self-sync error:", syncErr.message);
+    }
+
+    writeLog(
+      id,
+      db.agents[index].email,
+      `${db.agents[index].firstName} ${db.agents[index].lastName}`,
+      UserRole.AGENT,
+      "Agent Profile Updated",
+      `Agent updated their profile card.`,
       previousValue,
       db.agents[index]
     );
@@ -1207,6 +1848,8 @@ async function startServer() {
 
       const performanceScore = agentClients.length + doneReservations + donePayments;
 
+      const salesVolume = agentBookings.filter(b => b.status !== "Cancelled").length * 20050;
+
       return {
         id: a.id,
         name: `${a.firstName} ${a.lastName}`,
@@ -1215,6 +1858,7 @@ async function startServer() {
         doneReservations,
         donePayments,
         performanceScore,
+        salesVolume,
         status: a.status
       };
     }).sort((a,b) => b.performanceScore - a.performanceScore);

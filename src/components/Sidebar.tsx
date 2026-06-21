@@ -53,8 +53,10 @@ export function Sidebar({
     { id: "dashboard", label: "Broker Dashboard", icon: LayoutDashboard },
     { id: "agents", label: "Agent Management", icon: Users },
     { id: "clients", label: "Client Records", icon: UserCheck },
+    { id: "bookings", label: "Appointments", icon: TrendingUp },
     { id: "projects", label: "Project Inventory", icon: Building2 },
     { id: "conflicts", label: "Dual Entry Queue", icon: Layers, badgeCount: unreadCount },
+    { id: "settings", label: "Profile & Security", icon: Shield },
     { id: "audit", label: "Audit Ledger", icon: History },
     { id: "reports", label: "Performance Reports", icon: FileText },
   ];
@@ -62,9 +64,9 @@ export function Sidebar({
   const agentMenu = [
     { id: "dashboard", label: "Agent Console", icon: LayoutDashboard },
     { id: "clients", label: "My Clients", icon: UserCheck },
-    { id: "bookings", label: "My Appointment", icon: TrendingUp },
+    { id: "bookings", label: "My Appointments", icon: TrendingUp },
     { id: "projects", label: "My Projects", icon: Building2 },
-    
+    { id: "settings", label: "Profile & Security", icon: Shield },
   ];
 
   const activeMenu = isAdmin ? adminMenu : agentMenu;
@@ -102,13 +104,6 @@ export function Sidebar({
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-900/80 text-teal-400 border border-teal-800/90 uppercase">
             {currentUser.role}
           </span>
-          <button
-            onClick={onToggleDemoRole}
-            className="text-[10px] text-slate-400 hover:text-white hover:underline transition-colors cursor-pointer"
-            title="Conveniently toggle demo role in AI Studio preview"
-          >
-            Switch Role
-          </button>
         </div>
       </div>
 

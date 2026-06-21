@@ -25,9 +25,16 @@ import { DualEntry, DualEntryStatus, Client } from "../types.ts";
 interface ConflictQueueProps {
   onResolve: () => void;
   currentUser: any;
+  initialSelectedConflictId?: string | null;
+  onClearInitialSelectedConflictId?: () => void;
 }
 
-export function ConflictQueue({ onResolve, currentUser }: ConflictQueueProps) {
+export function ConflictQueue({ 
+  onResolve, 
+  currentUser, 
+  initialSelectedConflictId, 
+  onClearInitialSelectedConflictId 
+}: ConflictQueueProps) {
   const [conflicts, setConflicts] = useState<DualEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConflict, setSelectedConflict] = useState<DualEntry | null>(null);
@@ -48,6 +55,13 @@ export function ConflictQueue({ onResolve, currentUser }: ConflictQueueProps) {
         // Fulfill instruction: "Remove Conflicting Client details when conflict has been reviewed and resolved."
         const pendingConflicts = data.filter((entry: any) => entry.status === "Pending Review");
         setConflicts(pendingConflicts);
+
+        if (initialSelectedConflictId) {
+          const matched = pendingConflicts.find((e: any) => e.id === initialSelectedConflictId);
+          if (matched) {
+            setSelectedConflict(matched);
+          }
+        }
       }
     } catch (err) {
       console.error("Error loading dual entries:", err);
@@ -59,6 +73,16 @@ export function ConflictQueue({ onResolve, currentUser }: ConflictQueueProps) {
   useEffect(() => {
     fetchConflicts();
   }, []);
+
+  useEffect(() => {
+    if (initialSelectedConflictId && conflicts.length > 0) {
+      const matched = conflicts.find(e => e.id === initialSelectedConflictId);
+      if (matched) {
+        setSelectedConflict(matched);
+      }
+      onClearInitialSelectedConflictId?.();
+    }
+  }, [initialSelectedConflictId, conflicts]);
 
   const handleOpenDetail = (entry: DualEntry) => {
     setSelectedConflict(entry);
