@@ -80,23 +80,6 @@ const DEFAULT_USERS = [
 
 // Generate unique 3 letters 4 numbers alphanumeric ID suffix (total 7 characters)
 function generateUniqueId(prefix: string): string {
-  let attempts = 0;
-  while (attempts < 100) {
-    const letters = Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join("");
-    const numbers = Array.from({ length: 4 }, () => Math.floor(Math.random() * 10)).join("");
-    const candidate = `${prefix}-${letters}${numbers}`;
-    
-    const state = (typeof db !== "undefined") ? db : null;
-    const existsClients = state && state.clients ? state.clients.some(c => c.id === candidate) : false;
-    const existsAgents = state && state.agents ? state.agents.some(a => a.id === candidate) : false;
-    const existsBookings = state && state.bookings ? state.bookings.some(b => b.id === candidate) : false;
-    const existsDual = state && state.dualEntries ? state.dualEntries.some(d => d.id === candidate) : false;
-    
-    if (!existsClients && !existsAgents && !existsBookings && !existsDual) {
-      return candidate;
-    }
-    attempts++;
-  }
   const letters = Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join("");
   const numbers = Array.from({ length: 4 }, () => Math.floor(Math.random() * 10)).join("");
   return `${prefix}-${letters}${numbers}`;
@@ -214,7 +197,59 @@ const DEFAULT_CLIENTS: Client[] = [
   }
 ];
 
-const DEFAULT_BOOKINGS: Booking[] = [];
+const getTodayDateStr = () => {
+  const optionsStr = { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" } as const;
+  const dtf = new Intl.DateTimeFormat("en-CA", optionsStr);
+  return dtf.format(new Date());
+};
+
+const DEFAULT_BOOKINGS: Booking[] = [
+  {
+    id: "APT-XAX1111",
+    clientId: "CL-JDC1234",
+    clientName: "Juan Dela Cruz",
+    agentId: "AG-SRA8234",
+    agentName: "Sarah Ramirez",
+    appointmentType: "Site Visit",
+    appointmentDate: getTodayDateStr(),
+    appointmentTime: "09:00",
+    dateTime: `${getTodayDateStr()}T09:00:00`,
+    location: "Solinea",
+    status: "Open",
+    notes: "Interested in 2-bedroom unit.",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "APT-XAX2222",
+    clientId: "CL-JPS1338",
+    clientName: "Johnny Smith",
+    agentId: "AG-SRA8234",
+    agentName: "Sarah Ramirez",
+    appointmentType: "Submit Requirements",
+    appointmentDate: getTodayDateStr(),
+    appointmentTime: "13:30",
+    dateTime: `${getTodayDateStr()}T13:30:00`,
+    location: "Seawind",
+    status: "Open",
+    notes: "Bring printed copy of reservation form.",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "APT-XAX3333",
+    clientId: "CL-JDC1235",
+    clientName: "Juan Delacruz",
+    agentId: "AG-JBL1234",
+    agentName: "James Lim",
+    appointmentType: "Meeting",
+    appointmentDate: getTodayDateStr(),
+    appointmentTime: "15:00",
+    dateTime: `${getTodayDateStr()}T15:00:00`,
+    location: "Mivela",
+    status: "Open",
+    notes: "Needs clearance form.",
+    createdAt: new Date().toISOString()
+  }
+];
 
 const DEFAULT_DUAL_ENTRIES: DualEntry[] = [
   {
@@ -477,6 +512,27 @@ function generateRandomPassword(): string {
   return pwd;
 }
 
+const SIMULATED_EMAILS_FILE = path.join(process.cwd(), "simulated_emails.json");
+
+function loadSimulatedEmails() {
+  try {
+    if (fs.existsSync(SIMULATED_EMAILS_FILE)) {
+      return JSON.parse(fs.readFileSync(SIMULATED_EMAILS_FILE, "utf-8"));
+    }
+  } catch (err) {
+    console.error("Error loading simulated emails:", err);
+  }
+  return [];
+}
+
+function saveSimulatedEmails(emails: any[]) {
+  try {
+    fs.writeFileSync(SIMULATED_EMAILS_FILE, JSON.stringify(emails, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Error saving simulated emails:", err);
+  }
+}
+
 function simulateEmailSend(email: string, subject: string, body: string) {
   console.log("\n=======================================================");
   console.log(`[EMAIL DISPATCH SYSTEM LOG]`);
@@ -484,11 +540,25 @@ function simulateEmailSend(email: string, subject: string, body: string) {
   console.log(`Subject: ${subject}`);
   console.log(`Body:\n${body}`);
   console.log("=======================================================\n");
+
+  try {
+    const emailsList = loadSimulatedEmails();
+    emailsList.unshift({
+      id: "mail_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+      to: email,
+      subject,
+      body,
+      timestamp: new Date().toISOString()
+    });
+    saveSimulatedEmails(emailsList);
+  } catch (error) {
+    console.error("Failed to persist simulated email log:", error);
+  }
 }
 
 // Seeding function for first-time startup if databases are empty
 async function seedSupabaseIfNeeded() {
-  console.log("Checking if Supabase database needs seeding...");
+  console.log("Checking if Supabase database needs seedingCheck...");
   
   // 1. Realty Projects
   try {
@@ -578,7 +648,9 @@ async function seedSupabaseIfNeeded() {
     const { data, error } = await supabase.from("users").select("id");
     if (error || !data || data.length === 0) {
       console.log("Seeding default authenticated users into Supabase 'users' table...");
-      await supabase.from("users").insert(DEFAULT_USERS);
+      for (const u of DEFAULT_USERS) {
+        await saveUserForAuth(u);
+      }
     }
   } catch (err: any) {
     console.log("Notice: Failed to seed authenticated users:", err.message || err);
@@ -661,80 +733,447 @@ function normalizeKeys<T extends Record<string, any>>(obj: T, mappings: Record<s
   return result;
 }
 
-// Fetch helper functions that read directly from Supabase
-async function fetchAgents(): Promise<Agent[]> {
-  const { data, error } = await supabase.from("agents").select("*");
-  if (error) {
-    console.error("Supabase error fetching agents:", error);
-    throw error;
+function mapToDb<T extends Record<string, any>>(obj: T, mappings: Record<string, string>): Record<string, any> {
+  if (!obj || typeof obj !== "object") return obj;
+  const result = { ...obj } as any;
+  for (const [lowerKey, camelKey] of Object.entries(mappings)) {
+    if (obj[camelKey] !== undefined) {
+      result[lowerKey] = obj[camelKey];
+    }
   }
-  return (data || []).map(a => normalizeKeys<Agent>(a, AGENT_MAPPINGS));
+  return result;
+}
+
+function mapToDbSingle(obj: any, mappings: Record<string, string>): Record<string, any> {
+  if (!obj || typeof obj !== "object") return obj;
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) continue;
+    const lowerKey = Object.keys(mappings).find(lk => mappings[lk] === key);
+    if (lowerKey) {
+      result[lowerKey] = value;
+    } else {
+      result[key.toLowerCase()] = value;
+    }
+  }
+  return result;
+}
+
+function cleanCamelCasePayload(obj: any, mappings: Record<string, string>): Record<string, any> {
+  if (!obj || typeof obj !== "object") return obj;
+  const result = { ...obj };
+  for (const lowerKey of Object.keys(mappings)) {
+    if (result[lowerKey] !== undefined && mappings[lowerKey] !== lowerKey) {
+      delete result[lowerKey];
+    }
+  }
+  return result;
+}
+
+function isRlsError(err: any): boolean {
+  if (!err) return false;
+  const code = err.code || "";
+  const msg = err.message || "";
+  return code === "42501" || msg.toLowerCase().includes("security policy") || msg.toLowerCase().includes("row-level");
+}
+
+function printRlsInstruction(table: string, op: string, msg: string) {
+  console.warn(`
+========================================================================================
+⚠️ [Supabase-RLS] Row Level Security (RLS) blocked the '${op}' on table '${table}'.
+Error message: "${msg}"
+To fix this and allow the RealtySync application to save data to Supabase:
+1. Open your Supabase Dashboard -> SQL Editor.
+2. Run the policy statements from 'supabase-schema.sql' for table '${table}'.
+3. Or, if you want a quick fix for development, run:
+   ALTER TABLE "${table}" DISABLE ROW LEVEL SECURITY;
+========================================================================================
+`);
+}
+
+async function safeInsert(table: string, obj: any, mappings: Record<string, string>) {
+  const camelPayload = cleanCamelCasePayload(obj, mappings);
+  if (table === "dual_entries" && typeof camelPayload.details === "object") {
+    camelPayload.details = JSON.stringify(camelPayload.details);
+  }
+  const { data, error } = await supabase.from(table).insert(camelPayload).select();
+  if (!error) {
+    return { data, error: null };
+  }
+  
+  if (isRlsError(error)) {
+    printRlsInstruction(table, "insert", error.message);
+    return { data: null, error: error };
+  }
+
+  console.warn(`[Supabase] CamelCase insert into ${table} failed, retrying with lowercase:`, error.message);
+  const lowerPayload = mapToDbSingle(obj, mappings);
+  if (table === "dual_entries" && typeof lowerPayload.details === "object") {
+    lowerPayload.details = JSON.stringify(lowerPayload.details);
+  }
+  const { data: dataLower, error: errorLower } = await supabase.from(table).insert(lowerPayload).select();
+  if (errorLower) {
+    if (isRlsError(errorLower)) {
+      printRlsInstruction(table, "insert (lowercase retry)", errorLower.message);
+      return { data: null, error: errorLower };
+    }
+    console.warn(`[Supabase] Lowercase insert into ${table} failed:`, errorLower.message);
+    return { data: null, error: errorLower };
+  }
+  return { data: dataLower, error: null };
+}
+
+async function safeUpdate(table: string, obj: any, id: string, mappings: Record<string, string>) {
+  const camelPayload = cleanCamelCasePayload(obj, mappings);
+  if (table === "dual_entries" && typeof camelPayload.details === "object") {
+    camelPayload.details = JSON.stringify(camelPayload.details);
+  }
+  const { data, error } = await supabase.from(table).update(camelPayload).eq("id", id).select();
+  if (!error) {
+    return { data, error: null };
+  }
+
+  if (isRlsError(error)) {
+    printRlsInstruction(table, `update of ID ${id}`, error.message);
+    return { data: null, error: error };
+  }
+
+  console.warn(`[Supabase] CamelCase update of ${table} ID ${id} failed, retrying with lowercase:`, error.message);
+  const lowerPayload = mapToDbSingle(obj, mappings);
+  if (table === "dual_entries" && typeof lowerPayload.details === "object") {
+    lowerPayload.details = JSON.stringify(lowerPayload.details);
+  }
+  const { data: dataLower, error: errorLower } = await supabase.from(table).update(lowerPayload).eq("id", id).select();
+  if (errorLower) {
+    if (isRlsError(errorLower)) {
+      printRlsInstruction(table, `update of ID ${id} (lowercase retry)`, errorLower.message);
+      return { data: null, error: errorLower };
+    }
+    console.warn(`[Supabase] Lowercase update of ${table} ID ${id} failed:`, errorLower.message);
+    return { data: null, error: errorLower };
+  }
+  return { data: dataLower, error: null };
+}
+
+async function safeUpsert(table: string, obj: any, mappings: Record<string, string>) {
+  const camelPayload = cleanCamelCasePayload(obj, mappings);
+  if (table === "dual_entries" && typeof camelPayload.details === "object") {
+    camelPayload.details = JSON.stringify(camelPayload.details);
+  }
+  const { data, error } = await supabase.from(table).upsert(camelPayload).select();
+  if (!error) {
+    return { data, error: null };
+  }
+
+  if (isRlsError(error)) {
+    printRlsInstruction(table, "upsert", error.message);
+    return { data: null, error: error };
+  }
+
+  console.warn(`[Supabase] CamelCase upsert into ${table} failed, retrying with lowercase:`, error.message);
+  const lowerPayload = mapToDbSingle(obj, mappings);
+  if (table === "dual_entries" && typeof lowerPayload.details === "object") {
+    lowerPayload.details = JSON.stringify(lowerPayload.details);
+  }
+  const { data: dataLower, error: errorLower } = await supabase.from(table).upsert(lowerPayload).select();
+  if (errorLower) {
+    if (isRlsError(errorLower)) {
+      printRlsInstruction(table, "upsert (lowercase retry)", errorLower.message);
+      return { data: null, error: errorLower };
+    }
+    console.warn(`[Supabase] Lowercase upsert into ${table} failed:`, errorLower.message);
+    return { data: null, error: errorLower };
+  }
+  return { data: dataLower, error: null };
+}
+
+// In-Memory state caches that persist for the server session to prevent data loss on Supabase unconfiguration/RLS blocks
+let memoryUsers: any[] = [...DEFAULT_USERS];
+let memoryAgents: Agent[] = [...DEFAULT_AGENTS];
+let memoryClients: Client[] = [...DEFAULT_CLIENTS];
+let memoryBookings: Booking[] = [...DEFAULT_BOOKINGS];
+let memoryNotifications: Notification[] = [...DEFAULT_NOTIFICATIONS];
+let memoryAuditLogs: AuditLog[] = [...DEFAULT_AUDIT_LOGS];
+let memoryDualEntries: DualEntry[] = [...DEFAULT_DUAL_ENTRIES];
+let memoryRealtyProjects: string[] = [...DEFAULT_REALTY_PROJECTS];
+
+// Fetch helper functions that read directly from Supabase, with resilient in-memory failover fallbacks
+async function fetchAgents(): Promise<Agent[]> {
+  try {
+    const { data, error } = await supabase.from("agents").select("*");
+    if (error) {
+      console.warn("Supabase exception fetching agents, falling back to memory:", error.message);
+      return memoryAgents;
+    }
+    const dbAgents = (data || []).map(a => normalizeKeys<Agent>(a, AGENT_MAPPINGS));
+    memoryAgents = dbAgents;
+    return dbAgents;
+  } catch (err: any) {
+    console.warn("Exception in fetchAgents, falling back to memory:", err.message);
+    return memoryAgents;
+  }
 }
 
 async function fetchClients(): Promise<Client[]> {
-  const { data, error } = await supabase.from("clients").select("*");
-  if (error) {
-    console.error("Supabase error fetching clients:", error);
-    throw error;
+  try {
+    const { data, error } = await supabase.from("clients").select("*");
+    if (error) {
+      console.warn("Supabase exception fetching clients, falling back to memory:", error.message);
+      return memoryClients;
+    }
+    const dbClients = (data || []).map(c => normalizeKeys<Client>(c, CLIENT_MAPPINGS));
+    memoryClients = dbClients;
+    return dbClients;
+  } catch (err: any) {
+    console.warn("Exception in fetchClients, falling back to memory:", err.message);
+    return memoryClients;
   }
-  return (data || []).map(c => normalizeKeys<Client>(c, CLIENT_MAPPINGS));
 }
 
 async function fetchBookings(): Promise<Booking[]> {
-  const { data, error } = await supabase.from("bookings").select("*");
-  if (error) {
-    console.error("Supabase error fetching bookings:", error);
-    throw error;
+  try {
+    const { data, error } = await supabase.from("bookings").select("*");
+    if (error) {
+      console.warn("Supabase exception fetching bookings, falling back to memory:", error.message);
+      return memoryBookings;
+    }
+    const dbBookings = (data || []).map(b => normalizeKeys<Booking>(b, BOOKING_MAPPINGS));
+    memoryBookings = dbBookings;
+    return dbBookings;
+  } catch (err: any) {
+    console.warn("Exception in fetchBookings, falling back to memory:", err.message);
+    return memoryBookings;
   }
-  return (data || []).map(b => normalizeKeys<Booking>(b, BOOKING_MAPPINGS));
 }
 
 async function fetchDualEntries(): Promise<DualEntry[]> {
-  const { data, error } = await supabase.from("dual_entries").select("*");
-  if (error) {
-    console.error("Supabase error fetching dual_entries:", error);
-    throw error;
-  }
-  return (data || []).map(d => {
-    const norm = normalizeKeys<DualEntry>(d, DUAL_ENTRY_MAPPINGS);
-    if (norm.details && typeof norm.details === "string") {
-      try {
-        norm.details = JSON.parse(norm.details);
-      } catch (_) {}
+  try {
+    const { data, error } = await supabase.from("dual_entries").select("*");
+    if (error) {
+      console.warn("Supabase exception fetching dual_entries, falling back to memory:", error.message);
+      return memoryDualEntries;
     }
-    return norm;
-  });
+    const dbDuals = (data || []).map(d => {
+      const norm = normalizeKeys<DualEntry>(d, DUAL_ENTRY_MAPPINGS);
+      if (norm.details && typeof norm.details === "string") {
+        try {
+          norm.details = JSON.parse(norm.details);
+        } catch (_) {}
+      }
+      return norm;
+    });
+    memoryDualEntries = dbDuals;
+    return dbDuals;
+  } catch (err: any) {
+    console.warn("Exception in fetchDualEntries, falling back to memory:", err.message);
+    return memoryDualEntries;
+  }
 }
 
 async function fetchNotifications(): Promise<Notification[]> {
-  const { data, error } = await supabase.from("notifications").select("*");
-  if (error) {
-    console.error("Supabase error fetching notifications:", error);
-    throw error;
+  try {
+    const { data, error } = await supabase.from("notifications").select("*");
+    if (error) {
+      console.warn("Supabase exception fetching notifications, falling back to memory:", error.message);
+      return memoryNotifications;
+    }
+    const dbNotifs = (data || []).map(n => normalizeKeys<Notification>(n, NOTIFICATION_MAPPINGS));
+    memoryNotifications = dbNotifs;
+    return dbNotifs;
+  } catch (err: any) {
+    console.warn("Exception in fetchNotifications, falling back to memory:", err.message);
+    return memoryNotifications;
   }
-  return (data || []).map(n => normalizeKeys<Notification>(n, NOTIFICATION_MAPPINGS));
 }
 
 async function fetchAuditLogs(): Promise<AuditLog[]> {
-  const { data, error } = await supabase.from("audit_logs").select("*");
-  if (error) {
-    console.error("Supabase error fetching audit_logs:", error);
-    throw error;
+  try {
+    const { data, error } = await supabase.from("audit_logs").select("*");
+    if (error) {
+      console.warn("Supabase exception fetching audit_logs, falling back to memory:", error.message);
+      return memoryAuditLogs;
+    }
+    const dbLogs = (data || []).map(l => normalizeKeys<AuditLog>(l, AUDIT_LOG_MAPPINGS));
+    memoryAuditLogs = dbLogs;
+    return dbLogs;
+  } catch (err: any) {
+    console.warn("Exception in fetchAuditLogs, falling back to memory:", err.message);
+    return memoryAuditLogs;
   }
-  return (data || []).map(l => normalizeKeys<AuditLog>(l, AUDIT_LOG_MAPPINGS));
 }
 
 async function fetchRealtyProjects(): Promise<string[]> {
-  const { data, error } = await supabase.from("realty_projects").select("name");
-  if (error) {
-    console.error("Supabase error fetching realty_projects:", error);
-    return [...DEFAULT_REALTY_PROJECTS];
+  try {
+    const { data, error } = await supabase.from("realty_projects").select("name");
+    if (error) {
+      console.warn("Supabase exception fetching realty_projects, falling back to memory:", error.message);
+      return memoryRealtyProjects;
+    }
+    const dbProjects = (data || []).map(p => p.name);
+    memoryRealtyProjects = dbProjects;
+    return dbProjects;
+  } catch (err: any) {
+    console.warn("Exception in fetchRealtyProjects, falling back to memory:", err.message);
+    return memoryRealtyProjects;
   }
-  return (data && data.length > 0) ? data.map(p => p.name) : [...DEFAULT_REALTY_PROJECTS];
 }
 
 
-// Re-evaluates overlaps/conflicts among all clients in Supabase
+// Helper functions to safely handle users insertion/updates with fallback for different casing/scoping configurations of the users table.
+async function saveUserForAuth(user: { id: string, email: string, password?: string, firstName?: string, lastName?: string, role: string, status: string }) {
+  const emailClean = (user.email || "").toLowerCase().trim();
+  const fName = user.firstName || "";
+  const lName = user.lastName || "";
+
+  const payloadCamel: any = {
+    id: user.id,
+    email: emailClean,
+    role: user.role,
+    status: user.status,
+    firstName: fName,
+    lastName: lName,
+  };
+  if (user.password) {
+    payloadCamel.password = user.password;
+  }
+
+  const payloadLower: any = {
+    id: user.id,
+    email: emailClean,
+    role: user.role,
+    status: user.status,
+    firstname: fName,
+    lastname: lName,
+  };
+  if (user.password) {
+    payloadLower.password = user.password;
+  }
+
+  const payloadMinimal: any = {
+    id: user.id,
+    email: emailClean,
+    role: user.role,
+    status: user.status,
+  };
+  if (user.password) {
+    payloadMinimal.password = user.password;
+  }
+
+  // 1. Try CamelCase
+  try {
+    const { error } = await supabase.from("users").upsert(payloadCamel);
+    if (!error) {
+      console.log(`Successfully upserted user ${emailClean} with camelCase columns.`);
+      return;
+    }
+  } catch (err: any) {
+    console.warn("Notice: exception in CamelCase users upsert:", err.message);
+  }
+
+  // 2. Try Lowercase
+  try {
+    const { error } = await supabase.from("users").upsert(payloadLower);
+    if (!error) {
+      console.log(`Successfully upserted user ${emailClean} with lowercase columns.`);
+      return;
+    }
+  } catch (err: any) {
+    console.warn("Notice: exception in lowercase users upsert:", err.message);
+  }
+
+  // 3. Try Minimal Fields
+  try {
+    const { error } = await supabase.from("users").upsert(payloadMinimal);
+    if (!error) {
+      console.log(`Successfully upserted user ${emailClean} with minimal columns.`);
+    }
+  } catch (err: any) {
+    console.error("Critical exception in minimal users upsert:", err.message);
+  }
+
+  // Update in-memory user cache for resilient failover
+  const idx = memoryUsers.findIndex(u => u.id === user.id);
+  const updatedObj: any = {
+    id: user.id,
+    email: emailClean,
+    firstName: fName,
+    lastName: lName,
+    role: user.role as any,
+    status: user.status as any,
+    password: user.password || ""
+  };
+  if (idx !== -1) {
+    memoryUsers[idx] = { ...memoryUsers[idx], ...updatedObj };
+  } else {
+    memoryUsers.push(updatedObj);
+  }
+}
+
+async function updateUserForAuth(id: string, fields: { firstName?: string, lastName?: string, status?: string, email?: string, password?: string }) {
+  const payloadCamel: any = {};
+  const payloadLower: any = {};
+  const payloadMinimal: any = {};
+
+  if (fields.status !== undefined) {
+    payloadCamel.status = fields.status;
+    payloadLower.status = fields.status;
+    payloadMinimal.status = fields.status;
+  }
+  if (fields.email !== undefined) {
+    const clEmail = fields.email.toLowerCase().trim();
+    payloadCamel.email = clEmail;
+    payloadLower.email = clEmail;
+    payloadMinimal.email = clEmail;
+  }
+  if (fields.firstName !== undefined) {
+    payloadCamel.firstName = fields.firstName;
+    payloadLower.firstname = fields.firstName;
+  }
+  if (fields.lastName !== undefined) {
+    payloadCamel.lastName = fields.lastName;
+    payloadLower.lastname = fields.lastName;
+  }
+  if (fields.password !== undefined) {
+    payloadCamel.password = fields.password;
+    payloadLower.password = fields.password;
+    payloadMinimal.password = fields.password;
+  }
+
+  // 1. Try CamelCase
+  try {
+    const { error } = await supabase.from("users").update(payloadCamel).eq("id", id);
+    if (!error) return;
+  } catch (err: any) {
+    console.warn("Notice: exception in CamelCase users update:", err.message);
+  }
+
+  // 2. Try Lowercase
+  try {
+    const { error } = await supabase.from("users").update(payloadLower).eq("id", id);
+    if (!error) return;
+  } catch (err: any) {
+    console.warn("Notice: exception in lowercase users update:", err.message);
+  }
+
+  // 3. Try Minimal
+  if (Object.keys(payloadMinimal).length > 0) {
+    try {
+      const { error } = await supabase.from("users").update(payloadMinimal).eq("id", id);
+    } catch (err: any) {
+      console.error("Critical exception in minimal users update:", err.message);
+    }
+  }
+
+  // Update in-memory User cache for resilient failover
+  const idx = memoryUsers.findIndex(u => u.id === id);
+  if (idx !== -1) {
+    memoryUsers[idx] = {
+      ...memoryUsers[idx],
+      ...(fields as any),
+      email: fields.email !== undefined ? fields.email.toLowerCase().trim() : memoryUsers[idx].email,
+    };
+  }
+}
 async function reevaluateAllClientConflicts() {
   try {
     const clients = await fetchClients();
@@ -832,20 +1271,19 @@ async function reevaluateAllClientConflicts() {
 
     // Update clients
     for (const c of Object.values(clientUpdates)) {
-      const payload = mapToDb(c, CLIENT_MAPPINGS);
-      await supabase.from("clients").update(payload).eq("id", c.id);
+      await safeUpdate("clients", c, c.id, CLIENT_MAPPINGS);
     }
 
     // Upsert dual entries
     for (const d of dualEntriesToUpsert) {
-      const payload = mapToDb(d, DUAL_ENTRY_MAPPINGS);
-      payload.details = typeof d.details === "object" ? JSON.stringify(d.details) : d.details;
-      await supabase.from("dual_entries").upsert(payload);
+      await safeUpsert("dual_entries", d, DUAL_ENTRY_MAPPINGS);
     }
 
     // Delete inactive dual entries
     for (const id of dualEntriesToDelete) {
       await supabase.from("dual_entries").delete().eq("id", id);
+      // Synchronize to memory cache
+      memoryDualEntries = memoryDualEntries.filter(md => md.id !== id);
     }
 
     // Prune invalid dual entries (where clients don't exist)
@@ -856,6 +1294,7 @@ async function reevaluateAllClientConflicts() {
       const hasB = latestClients.some(c => c.id === d.clientIdB);
       if (!hasA || !hasB) {
         await supabase.from("dual_entries").delete().eq("id", d.id);
+        memoryDualEntries = memoryDualEntries.filter(md => md.id !== d.id);
       }
     }
   } catch (err) {
@@ -890,6 +1329,28 @@ async function startServer() {
 
   // --- API ROUTING COMPLYING TO FULL-STACK SPEC ---
 
+  app.get("/api/db-diagnostics", async (req, res) => {
+    const results: Record<string, any> = {};
+    const tables = ["users", "agents", "clients", "bookings", "dual_entries", "notifications", "audit_logs", "realty_projects"];
+    for (const table of tables) {
+      try {
+        const { count, error, data } = await supabase.from(table).select("*", { count: "exact", head: false }).limit(2);
+        if (error) {
+          results[table] = { status: "error", message: error.message, errorDetails: error };
+        } else {
+          results[table] = { status: "ok", count, sample: data };
+        }
+      } catch (err: any) {
+        results[table] = { status: "exception", message: err.message || String(err) };
+      }
+    }
+    res.json({
+      timestamp: new Date().toISOString(),
+      supabaseUrl: SUPABASE_URL,
+      results
+    });
+  });
+
   // Auth Endpoint (Real Stateless Password Verification via Bcrypt & Supabase)
   app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
@@ -909,8 +1370,8 @@ async function startServer() {
 
       let matchedUser = supaUser;
       if (!matchedUser) {
-        // Fallback: Check our secure DEFAULT_USERS seed list
-        matchedUser = DEFAULT_USERS.find(u => u.email.toLowerCase().trim() === cleanEmail);
+        // Fallback: Check our secure seed list
+        matchedUser = memoryUsers.find(u => u.email.toLowerCase().trim() === cleanEmail);
       }
 
       if (!matchedUser) {
@@ -973,7 +1434,7 @@ async function startServer() {
 
       let matchedUser = user;
       if (!matchedUser) {
-        matchedUser = DEFAULT_USERS.find(u => u.id === userId);
+        matchedUser = memoryUsers.find(u => u.id === userId);
       }
 
       if (!matchedUser) {
@@ -1006,6 +1467,12 @@ async function startServer() {
         console.warn("Notice: users update returned error, falling back locally:", updErr.message);
       }
 
+      // Update in memoryUsers cache so that it is preserved for stateless auth checks
+      const memoryIdx = memoryUsers.findIndex(u => u.id === userId);
+      if (memoryIdx !== -1) {
+        memoryUsers[memoryIdx].password = hash;
+      }
+
       // Remove from isTemporary file
       removeTempPasswordEmail(matchedUser.email);
 
@@ -1028,1009 +1495,1262 @@ async function startServer() {
   });
 
   // Audit Log writing middleware api
-  const writeLog = (userId: string, email: string, userName: string, role: UserRole, action: string, entity: string, prev?: any, curr?: any) => {
-    const log: AuditLog = {
-      id: "log_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
-      userId,
-      userEmail: email,
-      userName,
-      userRole: role,
-      action,
-      entity,
-      timestamp: new Date().toISOString(),
-      previousValue: prev ? typeof prev === 'string' ? prev : JSON.stringify(prev) : undefined,
-      newValue: curr ? typeof curr === 'string' ? curr : JSON.stringify(curr) : undefined,
-    };
-    db.auditLogs.unshift(log);
-    saveDB(db);
+  const writeLog = async (userId: string, email: string, userName: string, role: UserRole, action: string, entity: string, prev?: any, curr?: any) => {
+    try {
+      const log = {
+        id: "log_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+        userId,
+        userEmail: email,
+        userName,
+        userRole: role,
+        action,
+        entity,
+        timestamp: new Date().toISOString(),
+        previousValue: prev ? typeof prev === 'string' ? prev : JSON.stringify(prev) : undefined,
+        newValue: curr ? typeof curr === 'string' ? curr : JSON.stringify(curr) : undefined,
+      };
+      await safeInsert("audit_logs", log, AUDIT_LOG_MAPPINGS);
+
+      // Synchronize in-memory cache for resilient failover
+      memoryAuditLogs.push(log);
+    } catch (err) {
+      console.error("writeLog error writing to Supabase:", err);
+    }
   };
 
   // 1. DUP PREVENTATIVE ALGORITHM CHECK (Used during Client Creation warnings)
-  app.post("/api/clients/check-duplicate", (req, res) => {
-    const pendingClient = req.body;
-    let highestScore = 0;
-    let matchResult = null;
+  app.post("/api/clients/check-duplicate", async (req, res) => {
+    try {
+      const pendingClient = req.body;
+      let highestScore = 0;
+      let matchResult = null;
 
-    for (const existing of db.clients) {
-      // Skip comparing to self if editing
-      if (pendingClient.id && existing.id === pendingClient.id) continue;
+      const clients = await fetchClients();
+      const agents = await fetchAgents();
 
-      const comp = calculateCombinedDuplicateScore(pendingClient, existing);
-      if (comp.score > highestScore) {
-        highestScore = comp.score;
-        
-        let statusString: "Strong Duplicate" | "Possible Duplicate" | "No Duplicate" = "No Duplicate";
-        if (comp.score >= 90) statusString = "Strong Duplicate";
-        else if (comp.score >= 70) statusString = "Possible Duplicate";
+      for (const existing of clients) {
+        // Skip comparing to self if editing
+        if (pendingClient.id && existing.id === pendingClient.id) continue;
 
-        // Find agent info
-        const agent = db.agents.find(a => a.id === existing.assignedAgentId);
+        const comp = calculateCombinedDuplicateScore(pendingClient, existing);
+        if (comp.score > highestScore) {
+          highestScore = comp.score;
+          
+          let statusString: "Strong Duplicate" | "Possible Duplicate" | "No Duplicate" = "No Duplicate";
+          if (comp.score >= 90) statusString = "Strong Duplicate";
+          else if (comp.score >= 70) statusString = "Possible Duplicate";
 
-        matchResult = {
-          isDuplicate: comp.score >= 70,
-          score: comp.score,
-          status: statusString,
-          existingAgentName: agent ? `${agent.firstName} ${agent.lastName}` : existing.assignedAgentName,
-          existingAgentId: existing.assignedAgentId,
-          existingRegistrationDate: existing.dateRegistered,
-          existingClientId: existing.id,
-          scoreBreakdown: {
-            nameSimilarity: comp.nameSimilarity,
-            phoneMatch: comp.phoneMatch,
-            addressSimilarity: comp.addressSimilarity
-          }
-        };
+          // Find agent info
+          const agent = agents.find(a => a.id === existing.assignedAgentId);
+
+          matchResult = {
+            isDuplicate: comp.score >= 70,
+            score: comp.score,
+            status: statusString,
+            existingAgentName: agent ? `${agent.firstName} ${agent.lastName}` : existing.assignedAgentName,
+            existingAgentId: existing.assignedAgentId,
+            existingRegistrationDate: existing.dateRegistered,
+            existingClientId: existing.id,
+            scoreBreakdown: {
+              nameSimilarity: comp.nameSimilarity,
+              phoneMatch: comp.phoneMatch,
+              addressSimilarity: comp.addressSimilarity
+            }
+          };
+        }
       }
-    }
 
-    if (!matchResult || highestScore < 70) {
-      return res.json({
-        isDuplicate: false,
-        score: highestScore,
-        status: "No Duplicate"
-      });
-    }
+      if (!matchResult || highestScore < 70) {
+        return res.json({
+          isDuplicate: false,
+          score: highestScore,
+          status: "No Duplicate"
+        });
+      }
 
-    return res.json(matchResult);
+      return res.json(matchResult);
+    } catch (err: any) {
+      console.error("check-duplicate error:", err);
+      return res.status(500).json({ error: "Failed to check duplicate" });
+    }
   });
 
   // 2. CLIENT MODULE ENDPOINTS
-  app.get("/api/clients", (req, res) => {
-    const { search, agentId, duplicateStatus, page = "1", limit = "10" } = req.query;
-    let list = [...db.clients];
+  // 2. CLIENT MODULE ENDPOINTS
+  app.get("/api/clients", async (req, res) => {
+    try {
+      const { search, agentId, duplicateStatus, page = "1", limit = "10" } = req.query;
+      let list = await fetchClients();
 
-    // Sort with latest entry first
-    list.sort((a, b) => new Date(b.dateRegistered).getTime() - new Date(a.dateRegistered).getTime());
+      // Sort with latest entry first
+      list.sort((a, b) => new Date(b.dateRegistered).getTime() - new Date(a.dateRegistered).getTime());
 
-    // Filter by Search (Global Client Name, Mobile, Facebook, or Agent Name, or Client ID)
-    if (search) {
-      const q = String(search).toLowerCase();
-      list = list.filter(c => 
-        c.id.toLowerCase().includes(q) ||
-        `${c.firstName} ${c.middleName || ""} ${c.lastName}`.toLowerCase().includes(q) ||
-        c.mobileNumber.includes(q) ||
-        c.address.toLowerCase().includes(q) ||
-        c.facebookProfileLink?.toLowerCase().includes(q) ||
-        c.assignedAgentName.toLowerCase().includes(q)
-      );
+      // Filter by Search (Global Client Name, Mobile, Facebook, or Agent Name, or Client ID)
+      if (search) {
+        const q = String(search).toLowerCase();
+        list = list.filter(c => 
+          c.id.toLowerCase().includes(q) ||
+          `${c.firstName} ${c.middleName || ""} ${c.lastName}`.toLowerCase().includes(q) ||
+          c.mobileNumber.includes(q) ||
+          c.address.toLowerCase().includes(q) ||
+          c.facebookProfileLink?.toLowerCase().includes(q) ||
+          c.assignedAgentName.toLowerCase().includes(q)
+        );
+      }
+
+      // Filter by specific Agent
+      if (agentId) {
+        list = list.filter(c => c.assignedAgentId === agentId);
+      }
+
+      // Filter by Duplicate Status category
+      if (duplicateStatus) {
+        list = list.filter(c => c.duplicateStatus.toLowerCase() === String(duplicateStatus).toLowerCase());
+      }
+
+      // Server-side Pagination calculation
+      const pageNum = parseInt(String(page)) || 1;
+      const limitNum = parseInt(String(limit)) || 10;
+      const total = list.length;
+      const paginated = list.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+      res.json({
+        clients: paginated,
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum)
+      });
+    } catch (err: any) {
+      console.error("GET /api/clients error:", err);
+      res.status(500).json({ error: "Failed to load clients" });
     }
-
-    // Filter by specific Agent
-    if (agentId) {
-      list = list.filter(c => c.assignedAgentId === agentId);
-    }
-
-    // Filter by Duplicate Status category
-    if (duplicateStatus) {
-      list = list.filter(c => c.duplicateStatus.toLowerCase() === String(duplicateStatus).toLowerCase());
-    }
-
-    // Server-side Pagination calculation
-    const pageNum = parseInt(String(page)) || 1;
-    const limitNum = parseInt(String(limit)) || 10;
-    const total = list.length;
-    const paginated = list.slice((pageNum - 1) * limitNum, pageNum * limitNum);
-
-    res.json({
-      clients: paginated,
-      total,
-      page: pageNum,
-      limit: limitNum,
-      pages: Math.ceil(total / limitNum)
-    });
   });
 
-  app.post("/api/clients", (req, res) => {
-    const clientData = req.body;
-    const { userContext } = clientData; // client must send posting user context details
+  app.post("/api/clients", async (req, res) => {
+    try {
+      const clientData = req.body;
+      const { userContext } = clientData; // client must send posting user context details
 
-    const creatorId = userContext?.id || "agent_1";
-    const creatorName = userContext?.userName || "Sarah Ramirez";
-    const creatorEmail = userContext?.email || "sarah.ramirez@realtysync.com";
-    const creatorRole = userContext?.role || UserRole.AGENT;
+      const creatorId = userContext?.id || "agent_1";
+      const creatorName = userContext?.userName || "Sarah Ramirez";
+      const creatorEmail = userContext?.email || "sarah.ramirez@realtysync.com";
+      const creatorRole = userContext?.role || UserRole.AGENT;
 
-    // Build standard client entity
-    const newClient: Client = {
-      id: generateUniqueId("CL"),
-      firstName: clientData.firstName,
-      middleName: clientData.middleName || "",
-      lastName: clientData.lastName,
-      mobileNumber: clientData.mobileNumber,
-      address: clientData.address,
-      facebookProfileLink: clientData.facebookProfileLink || "",
-      sourceOfLead: clientData.sourceOfLead || "Social Media",
-      notes: clientData.notes || "",
-      assignedAgentId: creatorRole === UserRole.ADMIN ? (clientData.assignedAgentId || "agent_1") : creatorId,
-      assignedAgentName: creatorRole === UserRole.ADMIN ? (clientData.assignedAgentName || "Sarah Ramirez") : creatorName,
-      dateRegistered: new Date().toISOString(),
-      duplicateStatus: "None"
-    };
+      // Build standard client entity
+      const newClient: Client = {
+        id: generateUniqueId("CL"),
+        firstName: clientData.firstName,
+        middleName: clientData.middleName || "",
+        lastName: clientData.lastName,
+        mobileNumber: clientData.mobileNumber,
+        address: clientData.address,
+        facebookProfileLink: clientData.facebookProfileLink || "",
+        sourceOfLead: clientData.sourceOfLead || "Social Media",
+        notes: clientData.notes || "",
+        assignedAgentId: creatorRole === UserRole.ADMIN ? (clientData.assignedAgentId || "agent_1") : creatorId,
+        assignedAgentName: creatorRole === UserRole.ADMIN ? (clientData.assignedAgentName || "Sarah Ramirez") : creatorName,
+        dateRegistered: new Date().toISOString(),
+        duplicateStatus: "None"
+      };
 
-    // Calculate duplicate profile against existing clients
-    let conflictFound = false;
-    let activeConflict: any = null;
+      // Calculate duplicate profile against existing clients in Supabase
+      let conflictFound = false;
+      let activeConflict: any = null;
 
-    for (const existing of db.clients) {
-      const check = calculateCombinedDuplicateScore(newClient, existing);
-      if (check.score >= 70) {
-        conflictFound = true;
-        newClient.duplicateStatus = check.score >= 90 ? "Strong" : "Possible";
-        activeConflict = { existing, score: check.score };
+      const clients = await fetchClients();
+      for (const existing of clients) {
+        const check = calculateCombinedDuplicateScore(newClient, existing);
+        if (check.score >= 70) {
+          conflictFound = true;
+          newClient.duplicateStatus = check.score >= 90 ? "Strong" : "Possible";
+          activeConflict = { existing, score: check.score };
+        }
       }
+
+      // Persist client to Supabase
+      const { error: insertErr } = await safeInsert("clients", newClient, CLIENT_MAPPINGS);
+      if (insertErr) {
+        console.error("Supabase insert client failed:", insertErr.message);
+        return res.status(500).json({ error: `Failed to save client to Supabase: ${insertErr.message}` });
+      }
+
+      // Add to session in-memory cache for resilient failover
+      memoryClients.push(newClient);
+
+      // If duplicate was tracked, spawn DualEntry conflict records for admin inspection
+      if (conflictFound && activeConflict) {
+        const existing = activeConflict.existing;
+        const score = activeConflict.score;
+
+        const dualEntry: DualEntry = {
+          id: generateUniqueId("CON"),
+          clientName: `${newClient.firstName} ${newClient.lastName}`,
+          clientIdA: existing.id,
+          clientIdB: newClient.id,
+          agentIdA: existing.assignedAgentId,
+          agentNameA: existing.assignedAgentName,
+          agentIdB: newClient.assignedAgentId,
+          agentNameB: newClient.assignedAgentName,
+          dateA: existing.dateRegistered,
+          dateB: newClient.dateRegistered,
+          similarityScore: score,
+          status: "Pending Review",
+          details: {
+            clientA: existing,
+            clientB: newClient,
+            differences: {
+              name: `${existing.firstName} ${existing.lastName}`.toLowerCase() !== `${newClient.firstName} ${newClient.lastName}`.toLowerCase(),
+              phone: existing.mobileNumber !== newClient.mobileNumber,
+              address: normalizeAddress(existing.address) !== normalizeAddress(newClient.address)
+            }
+          }
+        };
+
+        const { error: dualErr } = await safeInsert("dual_entries", dualEntry, DUAL_ENTRY_MAPPINGS);
+        if (dualErr) {
+          console.warn("Supabase insert dual_entries failed:", dualErr.message);
+        }
+
+        // Add to session in-memory cache for resilient failover
+        memoryDualEntries.push(dualEntry);
+
+        // Create Admin Notifications
+        const notif: Notification = {
+          id: "notif_" + Date.now(),
+          title: "Duplicate Client Encoding",
+          message: `Agent ${newClient.assignedAgentName} registered '${newClient.firstName} ${newClient.lastName}' which duplicates '${existing.firstName} ${existing.lastName}' (Agent: ${existing.assignedAgentName}). Conflict score: ${score}%.`,
+          timestamp: new Date().toISOString(),
+          read: false,
+          type: "DUPLICATE_ALERT"
+        };
+        const { error: notifErr } = await safeInsert("notifications", notif, NOTIFICATION_MAPPINGS);
+        if (notifErr) {
+          console.warn("Supabase insert notifications failed:", notifErr.message);
+        }
+
+        // Add to session in-memory cache for resilient failover
+        memoryNotifications.push(notif);
+      }
+
+      // Add logging
+      await writeLog(
+        creatorId,
+        creatorEmail,
+        creatorName,
+        creatorRole,
+        conflictFound ? "Duplicate Client Registered" : "Client Registered",
+        `Client: ${newClient.firstName} ${newClient.lastName}`,
+        null,
+        newClient
+      );
+
+      res.status(201).json(newClient);
+    } catch (err: any) {
+      console.error("POST /api/clients error:", err);
+      res.status(500).json({ error: "Failed to create client" });
     }
+  });
 
-    db.clients.unshift(newClient);
+  app.put("/api/clients/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const clientData = req.body;
+      const { userContext } = clientData;
 
-    // If duplicate was tracked, spawn DualEntry conflict records for admin inspection
-    if (conflictFound && activeConflict) {
-      const existing = activeConflict.existing;
-      const score = activeConflict.score;
+      const editorId = userContext?.id || "admin_user";
+      const editorName = userContext?.userName || "Broker Admin";
+      const editorEmail = userContext?.email || "admin@realtysync.com";
+      const editorRole = userContext?.role || UserRole.ADMIN;
 
-      const dualEntry: DualEntry = {
-        id: generateUniqueId("CON"),
-        clientName: `${newClient.firstName} ${newClient.lastName}`,
-        clientIdA: existing.id,
-        clientIdB: newClient.id,
-        agentIdA: existing.assignedAgentId,
-        agentNameA: existing.assignedAgentName,
-        agentIdB: newClient.assignedAgentId,
-        agentNameB: newClient.assignedAgentName,
-        dateA: existing.dateRegistered,
-        dateB: newClient.dateRegistered,
-        similarityScore: score,
-        status: "Pending Review",
-        details: {
-          clientA: existing,
-          clientB: newClient,
-          differences: {
-            name: `${existing.firstName} ${existing.lastName}`.toLowerCase() !== `${newClient.firstName} ${newClient.lastName}`.toLowerCase(),
-            phone: existing.mobileNumber !== newClient.mobileNumber,
-            address: normalizeAddress(existing.address) !== normalizeAddress(newClient.address)
+      const clients = await fetchClients();
+      const existingClient = clients.find(c => c.id === id);
+      if (!existingClient) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+
+      const previousValue = { ...existingClient };
+      
+      // Update contents keeping original registration and static fields
+      const updatedClient: Client = {
+        ...existingClient,
+        firstName: clientData.firstName ?? existingClient.firstName,
+        middleName: clientData.middleName ?? existingClient.middleName,
+        lastName: clientData.lastName ?? existingClient.lastName,
+        mobileNumber: clientData.mobileNumber ?? existingClient.mobileNumber,
+        address: clientData.address ?? existingClient.address,
+        facebookProfileLink: clientData.facebookProfileLink ?? existingClient.facebookProfileLink,
+        sourceOfLead: clientData.sourceOfLead ?? existingClient.sourceOfLead,
+        notes: clientData.notes ?? existingClient.notes,
+      };
+
+      const { error: updErr } = await safeUpdate("clients", updatedClient, id, CLIENT_MAPPINGS);
+      if (updErr) {
+        console.error("Supabase update client failed:", updErr.message);
+        return res.status(500).json({ error: `Failed to update client on Supabase: ${updErr.message}` });
+      }
+
+      // Add to session in-memory cache for resilient failover
+      const cIdx = memoryClients.findIndex(c => c.id === id);
+      if (cIdx !== -1) {
+        memoryClients[cIdx] = updatedClient;
+      } else {
+        memoryClients.push(updatedClient);
+      }
+
+      // Re-evaluate overlap/conflicts across all clients when details are updated
+      await reevaluateAllClientConflicts();
+
+      await writeLog(
+        editorId,
+        editorEmail,
+        editorName,
+        editorRole,
+        "Client Records Updated",
+        `Client ID: ${id}`,
+        previousValue,
+        updatedClient
+      );
+
+      res.json(updatedClient);
+    } catch (err: any) {
+      console.error("PUT /api/clients/:id error:", err);
+      res.status(500).json({ error: "Failed to update client" });
+    }
+  });
+
+  app.post("/api/clients/:id/surrender", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { userContext } = req.body;
+
+      const agentId = userContext?.id || "unknown_agent";
+      const agentName = userContext?.userName || "Agent Representative";
+      const agentEmail = userContext?.email || "agent@realtysync.com";
+
+      const clients = await fetchClients();
+      const client = clients.find(c => c.id === id);
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+
+      const previousStateString = JSON.stringify(client);
+
+      // Find the dual entry associated with this client that is pending review in Supabase
+      const dualEntries = await fetchDualEntries();
+      const dual = dualEntries.find(d => 
+        (d.clientIdA === id || d.clientIdB === id) && 
+        d.status === "Pending Review"
+      );
+
+      if (dual) {
+        const previousDualState = JSON.stringify(dual);
+        const otherClientId = dual.clientIdA === id ? dual.clientIdB : dual.clientIdA;
+        const otherClient = clients.find(c => c.id === otherClientId);
+
+        // Resolve the dual entry
+        dual.status = "Resolved";
+        const { error: dualUpdErr } = await safeUpdate("dual_entries", dual, dual.id, DUAL_ENTRY_MAPPINGS);
+        if (dualUpdErr) {
+          console.error("Supabase update dual_entries error:", dualUpdErr.message);
+        }
+
+        // Update memory dual entries cache
+        const dIdx = memoryDualEntries.findIndex(d => d.id === dual.id);
+        if (dIdx !== -1) {
+          memoryDualEntries[dIdx] = dual;
+        }
+
+        // Clear duplicate status on the remaining winner client
+        if (otherClient) {
+          otherClient.duplicateStatus = "None";
+          const { error: otherUpdErr } = await safeUpdate("clients", otherClient, otherClient.id, CLIENT_MAPPINGS);
+          if (otherUpdErr) {
+            console.error("Supabase update other client error:", otherUpdErr.message);
+          }
+
+          // Update memory clients cache
+          const ocIdx = memoryClients.findIndex(c => c.id === otherClient.id);
+          if (ocIdx !== -1) {
+            memoryClients[ocIdx] = otherClient;
           }
         }
-      };
 
-      db.dualEntries.unshift(dualEntry);
-
-      // Create Admin Notifications
-      const notif: Notification = {
-        id: "notif_" + Date.now(),
-        title: "Duplicate Client Encoding",
-        message: `Agent ${newClient.assignedAgentName} registered '${newClient.firstName} ${newClient.lastName}' which duplicates '${existing.firstName} ${existing.lastName}' (Agent: ${existing.assignedAgentName}). Conflict score: ${score}%.`,
-        timestamp: new Date().toISOString(),
-        read: false,
-        type: "DUPLICATE_ALERT"
-      };
-      db.notifications.unshift(notif);
-    }
-
-    // Add logging
-    writeLog(
-      creatorId,
-      creatorEmail,
-      creatorName,
-      creatorRole,
-      conflictFound ? "Duplicate Client Registered" : "Client Registered",
-      `Client: ${newClient.firstName} ${newClient.lastName}`,
-      null,
-      newClient
-    );
-
-    saveDB(db);
-    res.status(201).json(newClient);
-  });
-
-  app.put("/api/clients/:id", (req, res) => {
-    const { id } = req.params;
-    const clientData = req.body;
-    const { userContext } = clientData;
-
-    const editorId = userContext?.id || "admin_user";
-    const editorName = userContext?.userName || "Broker Admin";
-    const editorEmail = userContext?.email || "admin@realtysync.com";
-    const editorRole = userContext?.role || UserRole.ADMIN;
-
-    const index = db.clients.findIndex(c => c.id === id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Client not found" });
-    }
-
-    const previousValue = { ...db.clients[index] };
-    
-    // Update contents keeping original registration and static fields
-    db.clients[index] = {
-      ...db.clients[index],
-      firstName: clientData.firstName ?? db.clients[index].firstName,
-      middleName: clientData.middleName ?? db.clients[index].middleName,
-      lastName: clientData.lastName ?? db.clients[index].lastName,
-      mobileNumber: clientData.mobileNumber ?? db.clients[index].mobileNumber,
-      address: clientData.address ?? db.clients[index].address,
-      facebookProfileLink: clientData.facebookProfileLink ?? db.clients[index].facebookProfileLink,
-      sourceOfLead: clientData.sourceOfLead ?? db.clients[index].sourceOfLead,
-      notes: clientData.notes ?? db.clients[index].notes,
-    };
-
-    // Re-evaluate overlap/conflicts across all clients when details are updated
-    reevaluateAllClientConflicts();
-
-    writeLog(
-      editorId,
-      editorEmail,
-      editorName,
-      editorRole,
-      "Client Records Updated",
-      `Client ID: ${id}`,
-      previousValue,
-      db.clients[index]
-    );
-
-    saveDB(db);
-    res.json(db.clients[index]);
-  });
-
-  app.post("/api/clients/:id/surrender", (req, res) => {
-    const { id } = req.params;
-    const { userContext } = req.body;
-
-    const agentId = userContext?.id || "unknown_agent";
-    const agentName = userContext?.userName || "Agent Representative";
-    const agentEmail = userContext?.email || "agent@realtysync.com";
-
-    const clientIndex = db.clients.findIndex(c => c.id === id);
-    if (clientIndex === -1) {
-      return res.status(404).json({ error: "Client not found" });
-    }
-
-    const client = db.clients[clientIndex];
-    const previousStateString = JSON.stringify(client);
-
-    // Find the dual entry associated with this client that is pending review
-    const dualIndex = db.dualEntries.findIndex(d => 
-      (d.clientIdA === id || d.clientIdB === id) && 
-      d.status === "Pending Review"
-    );
-
-    if (dualIndex !== -1) {
-      const dual = db.dualEntries[dualIndex];
-      const previousDualState = JSON.stringify(dual);
-
-      // Determine the winner client (the one that is NOT this surrendered client)
-      const otherClientId = dual.clientIdA === id ? dual.clientIdB : dual.clientIdA;
-      const otherClientIndex = db.clients.findIndex(c => c.id === otherClientId);
-
-      // Resolve the dual entry
-      dual.status = "Resolved";
-      // Clear duplicate status on the remaining winner client
-      if (otherClientIndex !== -1) {
-        db.clients[otherClientIndex].duplicateStatus = "None";
+        await writeLog(
+          agentId,
+          agentEmail,
+          agentName,
+          UserRole.AGENT,
+          "Voluntary Claim Surrender & Resolve",
+          `Agent surrendered claim on client '${client.firstName} ${client.lastName}'. Conflicting entry resolved.`,
+          previousDualState,
+          JSON.stringify(dual)
+        );
       }
 
-      writeLog(
+      // Do not delete client record when being surrendered just update status to "Surrendered Claim"
+      client.status = "Surrendered Claim";
+      client.duplicateStatus = "None"; // Clear duplicate check since they are surrendering
+
+      const { error: surrenderErr } = await safeUpdate("clients", client, client.id, CLIENT_MAPPINGS);
+      if (surrenderErr) {
+        console.error("Supabase update client surrender status failed:", surrenderErr.message);
+        return res.status(500).json({ error: `Failed to update client status: ${surrenderErr.message}` });
+      }
+
+      // Update memory clients cache
+      const cIdx = memoryClients.findIndex(c => c.id === client.id);
+      if (cIdx !== -1) {
+        memoryClients[cIdx] = client;
+      }
+
+      await writeLog(
         agentId,
         agentEmail,
         agentName,
         UserRole.AGENT,
-        "Voluntary Claim Surrender & Resolve",
-        `Agent surrendered claim on client '${client.firstName} ${client.lastName}'. Conflicting entry resolved.`,
-        previousDualState,
-        JSON.stringify(dual)
+        "Client Claim Surrendered",
+        `Updated client profile '${client.firstName} ${client.lastName}' status to 'Surrendered Claim' due to agent voluntary claim surrender`,
+        previousStateString,
+        JSON.stringify(client)
       );
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("POST /api/clients/:id/surrender error:", err);
+      res.status(500).json({ error: "Failed to surrender client claim" });
     }
-
-    // Do not delete client record when being surrendered just update status to "Surrendered Claim"
-    client.status = "Surrendered Claim";
-    client.duplicateStatus = "None"; // Clear duplicate check since they are surrendering
-
-    writeLog(
-      agentId,
-      agentEmail,
-      agentName,
-      UserRole.AGENT,
-      "Client Claim Surrendered",
-      `Updated client profile '${client.firstName} ${client.lastName}' status to 'Surrendered Claim' due to agent voluntary claim surrender`,
-      previousStateString,
-      JSON.stringify(client)
-    );
-
-    saveDB(db);
-    res.json({ success: true });
   });
 
   // 3. AGENT MODULE ENDPOINTS
-  app.get("/api/agents", (req, res) => {
-    const { search, status } = req.query;
-    let list = [...db.agents];
+  app.get("/api/agents", async (req, res) => {
+    try {
+      const { search, status } = req.query;
+      let list = await fetchAgents();
 
-    if (search) {
-      const q = String(search).toLowerCase();
-      list = list.filter(a => 
-        `${a.firstName} ${a.middleName || ""} ${a.lastName}`.toLowerCase().includes(q) ||
-        a.email.toLowerCase().includes(q) ||
-        a.mobileNumber.includes(q) ||
-        (a.prcLicenseNumber || "").toLowerCase().includes(q)
-      );
+      if (search) {
+        const q = String(search).toLowerCase();
+        list = list.filter(a => 
+          `${a.firstName} ${a.middleName || ""} ${a.lastName}`.toLowerCase().includes(q) ||
+          a.email.toLowerCase().includes(q) ||
+          a.mobileNumber.includes(q) ||
+          (a.prcLicenseNumber || "").toLowerCase().includes(q)
+        );
+      }
+
+      if (status) {
+        list = list.filter(a => a.status.toLowerCase() === String(status).toLowerCase());
+      }
+
+      res.json(list);
+    } catch (err: any) {
+      console.error("GET /api/agents error:", err);
+      res.status(500).json({ error: "Failed to load agents" });
     }
-
-    if (status) {
-      list = list.filter(a => a.status.toLowerCase() === String(status).toLowerCase());
-    }
-
-    res.json(list);
   });
 
   app.post("/api/agents", async (req, res) => {
-    const { firstName, middleName, lastName, email, mobileNumber, prcLicenseNumber, userContext } = req.body;
-
-    // Check duplicate email
-    if (db.agents.some(a => a.email.toLowerCase() === email.toLowerCase())) {
-      return res.status(400).json({ error: "An agent with this email already exists." });
-    }
-
-    const newAgent: Agent = {
-      id: generateUniqueId("AG"),
-      firstName,
-      middleName,
-      lastName,
-      email,
-      mobileNumber,
-      prcLicenseNumber: prcLicenseNumber || "",
-      status: "Active",
-      createdAt: new Date().toISOString()
-    };
-
-    // Generate random temporary password
-    const tempPassword = generateRandomPassword();
-    const hash = bcrypt.hashSync(tempPassword, 10);
-    
-    // Track as temporary password account
-    addTempPasswordEmail(email);
-
-    // Save user credentials into remote Supabase users table
     try {
-      await supabase.from("users").insert({
+      const { firstName, middleName, lastName, email, mobileNumber, prcLicenseNumber, userContext } = req.body;
+
+      // Check duplicate email
+      const agents = await fetchAgents();
+      if (agents.some(a => a.email.toLowerCase() === email.toLowerCase())) {
+        return res.status(400).json({ error: "An agent with this email already exists." });
+      }
+
+      const newAgent: Agent = {
+        id: generateUniqueId("AG"),
+        firstName,
+        middleName,
+        lastName,
+        email,
+        mobileNumber,
+        prcLicenseNumber: prcLicenseNumber || "",
+        status: "Active",
+        createdAt: new Date().toISOString()
+      };
+
+      // Generate random temporary password
+      const tempPassword = generateRandomPassword();
+      const hash = bcrypt.hashSync(tempPassword, 10);
+      
+      // Track as temporary password account
+      addTempPasswordEmail(email);
+
+      // Save user credentials into remote Supabase users table
+      await saveUserForAuth({
         id: newAgent.id,
-        email: email.toLowerCase().trim(),
+        email: email,
         password: hash,
         firstName: firstName,
         lastName: lastName,
         role: "AGENT",
         status: "Active"
       });
-    } catch (dbErr: any) {
-      console.warn("Notice: users table sync returned error, fallback locally:", dbErr.message);
-    }
 
-    // Simulate email dispatch
-    simulateEmailSend(
-      email,
-      "Welcome to RealtySync! Your Account Credentials",
-      `Hi ${firstName},\n\nAn agent profile has been registered for you at RealtySync.\nYour temporary login credentials are:\n\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nFor security reasons, you will be required to change your password on your first login.\n\nBest Regards,\nRealtySync Administrator`
-    );
-
-    // Also push real-time in-app notification
-    const notification: Notification = {
-      id: "notif_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
-      title: "Temporary Account Credentials Generated",
-      message: `System generated temporary credentials for user ${email}. Temporary Password: ${tempPassword}`,
-      timestamp: new Date().toISOString(),
-      read: false,
-      type: "ALERT"
-    };
-    db.notifications.unshift(notification);
-
-    db.agents.unshift(newAgent);
-
-    writeLog(
-      userContext?.id || "admin_user",
-      userContext?.email || "admin@realtysync.com",
-      userContext?.userName || "Admin",
-      UserRole.ADMIN,
-      "Agent Account Created",
-      `Agent: ${newAgent.firstName} ${newAgent.lastName}. Temporary password generated and email dispatched.`,
-      null,
-      newAgent
-    );
-
-    saveDB(db);
-    // Return tempPassword in response for Admin easy access
-    res.status(201).json({ ...newAgent, tempPassword });
-  });
-
-  app.put("/api/agents/:id", async (req, res) => {
-    const { id } = req.params;
-    const { firstName, middleName, lastName, email, mobileNumber, prcLicenseNumber, status, userContext } = req.body;
-
-    const index = db.agents.findIndex(a => a.id === id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Agent record not found" });
-    }
-
-    const previousValue = { ...db.agents[index] };
-    const isReactivating = status === "Active" && previousValue.status === "Inactive";
-
-    let tempPassword = "";
-
-    // Soft delete / status toggling is updated natively here
-    db.agents[index] = {
-      ...db.agents[index],
-      firstName: firstName ?? db.agents[index].firstName,
-      middleName: middleName ?? db.agents[index].middleName,
-      lastName: lastName ?? db.agents[index].lastName,
-      email: email ?? db.agents[index].email,
-      mobileNumber: mobileNumber ?? db.agents[index].mobileNumber,
-      prcLicenseNumber: prcLicenseNumber ?? db.agents[index].prcLicenseNumber,
-      status: status ?? db.agents[index].status,
-    };
-
-    // If reactivating, update/save credentials and generate temporary password
-    if (isReactivating) {
-      tempPassword = generateRandomPassword();
-      const hash = bcrypt.hashSync(tempPassword, 10);
-      addTempPasswordEmail(db.agents[index].email);
-
-      try {
-        await supabase.from("users").upsert({
-          id: id,
-          email: db.agents[index].email.toLowerCase().trim(),
-          password: hash,
-          firstName: db.agents[index].firstName,
-          lastName: db.agents[index].lastName,
-          role: "AGENT",
-          status: "Active"
-        });
-      } catch (dbErr: any) {
-        console.warn("Notice: Reactivation user sync returned error:", dbErr.message);
+      // Save agent to Supabase agents table
+      const { error: agentInsertErr } = await safeInsert("agents", newAgent, AGENT_MAPPINGS);
+      if (agentInsertErr) {
+        console.error("Supabase insert agent failed:", agentInsertErr.message);
+        return res.status(500).json({ error: `Failed to save agent profile: ${agentInsertErr.message}` });
       }
 
-      // Live notification
+      // Add to session in-memory cache for resilient failover
+      memoryAgents.push(newAgent);
+
+      // Simulate email dispatch
+      simulateEmailSend(
+        email,
+        "Welcome to RealtySync! Your Account Credentials",
+        `Hi ${firstName},\n\nAn agent profile has been registered for you at RealtySync.\nYour temporary login credentials are:\n\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nFor security reasons, you will be required to change your password on your first login.\n\nBest Regards,\nRealtySync Administrator`
+      );
+
+      // Also push real-time in-app notification to Supabase
       const notification: Notification = {
         id: "notif_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
-        title: "Agent Reactivated Credentials Reset",
-        message: `System reset login credentials for reactivated agent ${db.agents[index].firstName} ${db.agents[index].lastName}. Temporary Password: ${tempPassword}`,
+        title: "Temporary Account Credentials Generated",
+        message: `System generated temporary credentials for user ${email}. Temporary Password: ${tempPassword}`,
         timestamp: new Date().toISOString(),
         read: false,
         type: "ALERT"
       };
-      db.notifications.unshift(notification);
+      await safeInsert("notifications", notification, NOTIFICATION_MAPPINGS);
 
-      simulateEmailSend(
-        db.agents[index].email,
-        "RealtySync Account Reactivated",
-        `Hi ${db.agents[index].firstName},\n\nYour RealtySync agent account has been reactivated.\nYour temporary password is:\n\nTemporary Password: ${tempPassword}\n\nYou will be required to change your password upon logging in.\n\nBest Regards,\nRealtySync Administrator`
+      await writeLog(
+        userContext?.id || "admin_user",
+        userContext?.email || "admin@realtysync.com",
+        userContext?.userName || "Admin",
+        UserRole.ADMIN,
+        "Agent Account Created",
+        `Agent: ${newAgent.firstName} ${newAgent.lastName}. Temporary password generated and email dispatched.`,
+        null,
+        newAgent
       );
-    } else if (status === "Inactive" && previousValue.status === "Active") {
-      // Deactivate credentials
-      try {
-        await supabase.from("users").update({ status: "Inactive" }).eq("id", id);
-      } catch (dbErr: any) {
-        console.warn("Notice: deactivation credentials sync error:", dbErr.message);
-      }
-    } else {
-      // Just update names in users table if updated
-      try {
-        await supabase.from("users").update({
-          firstName: db.agents[index].firstName,
-          lastName: db.agents[index].lastName,
-          status: db.agents[index].status
-        }).eq("id", id);
-      } catch (dbErr: any) {
-        console.warn("Notice: profile sync error:", dbErr.message);
-      }
+
+      // Return tempPassword in response for Admin easy access
+      res.status(201).json({ ...newAgent, tempPassword });
+    } catch (err: any) {
+      console.error("POST /api/agents error:", err);
+      res.status(500).json({ error: "Failed to create agent" });
     }
+  });
 
-    // Log the event
-    const actionText = status && status !== previousValue.status
-      ? (status === "Inactive" ? "Agent Account Deactivated" : "Agent Account Reactivated")
-      : "Agent Profile Updated";
+  app.put("/api/agents/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { firstName, middleName, lastName, email, mobileNumber, prcLicenseNumber, status, userContext } = req.body;
 
-    writeLog(
-      userContext?.id || "admin_user",
-      userContext?.email || "admin@realtysync.com",
-      userContext?.userName || "Admin",
-      UserRole.ADMIN,
-      actionText,
-      `Agent: ${db.agents[index].firstName} ${db.agents[index].lastName}. ${tempPassword ? "Temporary password reset." : ""}`,
-      previousValue,
-      db.agents[index]
-    );
+      const agents = await fetchAgents();
+      const existingAgent = agents.find(a => a.id === id);
+      if (!existingAgent) {
+        return res.status(404).json({ error: "Agent record not found" });
+      }
 
-    saveDB(db);
-    res.json({ ...db.agents[index], tempPassword });
+      const previousValue = { ...existingAgent };
+      const isReactivating = status === "Active" && previousValue.status === "Inactive";
+
+      let tempPassword = "";
+
+      // Soft delete / status toggling is updated natively here
+      const updatedAgent: Agent = {
+        ...existingAgent,
+        firstName: firstName ?? existingAgent.firstName,
+        middleName: middleName ?? existingAgent.middleName,
+        lastName: lastName ?? existingAgent.lastName,
+        email: email ?? existingAgent.email,
+        mobileNumber: mobileNumber ?? existingAgent.mobileNumber,
+        prcLicenseNumber: prcLicenseNumber ?? existingAgent.prcLicenseNumber,
+        status: status ?? existingAgent.status,
+      };
+
+      // If reactivating, update/save credentials and generate temporary password
+      if (isReactivating) {
+        tempPassword = generateRandomPassword();
+        const hash = bcrypt.hashSync(tempPassword, 10);
+        addTempPasswordEmail(updatedAgent.email);
+
+        await saveUserForAuth({
+          id: id,
+          email: updatedAgent.email,
+          password: hash,
+          firstName: updatedAgent.firstName,
+          lastName: updatedAgent.lastName,
+          role: "AGENT",
+          status: "Active"
+        });
+
+        // Live notification
+        const notification: Notification = {
+          id: "notif_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+          title: "Agent Reactivated Credentials Reset",
+          message: `System reset login credentials for reactivated agent ${updatedAgent.firstName} ${updatedAgent.lastName}. Temporary Password: ${tempPassword}`,
+          timestamp: new Date().toISOString(),
+          read: false,
+          type: "ALERT"
+        };
+        await safeInsert("notifications", notification, NOTIFICATION_MAPPINGS);
+
+        simulateEmailSend(
+          updatedAgent.email,
+          "RealtySync Account Reactivated",
+          `Hi ${updatedAgent.firstName},\n\nYour RealtySync agent account has been reactivated.\nYour temporary password is:\n\nTemporary Password: ${tempPassword}\n\nYou will be required to change your password upon logging in.\n\nBest Regards,\nRealtySync Administrator`
+        );
+      } else if (status === "Inactive" && previousValue.status === "Active") {
+        // Deactivate credentials
+        await updateUserForAuth(id, { status: "Inactive" });
+      } else {
+        // Just update names in users table if updated
+        await updateUserForAuth(id, {
+          firstName: updatedAgent.firstName,
+          lastName: updatedAgent.lastName,
+          status: updatedAgent.status
+        });
+      }
+
+      // Save agent to Supabase agents table
+      const { error: agentUpdErr } = await safeUpdate("agents", updatedAgent, id, AGENT_MAPPINGS);
+      if (agentUpdErr) {
+        console.error("Supabase update agent failed:", agentUpdErr.message);
+        return res.status(500).json({ error: `Failed to update agent details on Supabase: ${agentUpdErr.message}` });
+      }
+
+      // Sync into memory cache
+      const aIdx = memoryAgents.findIndex(a => a.id === id);
+      if (aIdx !== -1) {
+        memoryAgents[aIdx] = updatedAgent;
+      } else {
+        memoryAgents.push(updatedAgent);
+      }
+
+      // Log the event
+      const actionText = status && status !== previousValue.status
+        ? (status === "Inactive" ? "Agent Account Deactivated" : "Agent Account Reactivated")
+        : "Agent Profile Updated";
+
+      await writeLog(
+        userContext?.id || "admin_user",
+        userContext?.email || "admin@realtysync.com",
+        userContext?.userName || "Admin",
+        UserRole.ADMIN,
+        actionText,
+        `Agent: ${updatedAgent.firstName} ${updatedAgent.lastName}. ${tempPassword ? "Temporary password reset." : ""}`,
+        previousValue,
+        updatedAgent
+      );
+
+      res.json({ ...updatedAgent, tempPassword });
+    } catch (err: any) {
+      console.error("PUT /api/agents/:id error:", err);
+      res.status(500).json({ error: "Failed to update agent" });
+    }
   });
 
   // Self Profile Update endpoint for agents
   app.put("/api/agents/:id/profile", async (req, res) => {
-    const { id } = req.params;
-    const { firstName, middleName, lastName, mobileNumber, prcLicenseNumber } = req.body;
-
-    const index = db.agents.findIndex(a => a.id === id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Agent profile record not found." });
-    }
-
-    const previousValue = { ...db.agents[index] };
-
-    db.agents[index] = {
-      ...db.agents[index],
-      firstName: firstName ?? db.agents[index].firstName,
-      middleName: middleName ?? db.agents[index].middleName,
-      lastName: lastName ?? db.agents[index].lastName,
-      mobileNumber: mobileNumber ?? db.agents[index].mobileNumber,
-      prcLicenseNumber: prcLicenseNumber !== undefined ? prcLicenseNumber : db.agents[index].prcLicenseNumber,
-    };
-
     try {
-      await supabase.from("users").update({
-        firstName: db.agents[index].firstName,
-        lastName: db.agents[index].lastName
-      }).eq("id", id);
-    } catch (syncErr: any) {
-      console.warn("Notice: profile self-sync error:", syncErr.message);
+      const { id } = req.params;
+      const { firstName, middleName, lastName, mobileNumber, prcLicenseNumber } = req.body;
+
+      const agents = await fetchAgents();
+      const existingAgent = agents.find(a => a.id === id);
+      if (!existingAgent) {
+        return res.status(404).json({ error: "Agent profile record not found." });
+      }
+
+      const previousValue = { ...existingAgent };
+
+      const updatedAgent: Agent = {
+        ...existingAgent,
+        firstName: firstName ?? existingAgent.firstName,
+        middleName: middleName ?? existingAgent.middleName,
+        lastName: lastName ?? existingAgent.lastName,
+        mobileNumber: mobileNumber ?? existingAgent.mobileNumber,
+        prcLicenseNumber: prcLicenseNumber !== undefined ? prcLicenseNumber : existingAgent.prcLicenseNumber,
+      };
+
+      await updateUserForAuth(id, {
+        firstName: updatedAgent.firstName,
+        lastName: updatedAgent.lastName
+      });
+
+      // Save agent to Supabase agents table
+      const { error: agentSelfUpdErr } = await safeUpdate("agents", updatedAgent, id, AGENT_MAPPINGS);
+      if (agentSelfUpdErr) {
+        console.error("Supabase update agent failed:", agentSelfUpdErr.message);
+        return res.status(500).json({ error: `Failed to update agent profile: ${agentSelfUpdErr.message}` });
+      }
+
+      // Sync into memory cache
+      const selfIdx = memoryAgents.findIndex(a => a.id === id);
+      if (selfIdx !== -1) {
+        memoryAgents[selfIdx] = updatedAgent;
+      } else {
+        memoryAgents.push(updatedAgent);
+      }
+
+      await writeLog(
+        id,
+        updatedAgent.email,
+        `${updatedAgent.firstName} ${updatedAgent.lastName}`,
+        UserRole.AGENT,
+        "Agent Profile Updated",
+        `Agent updated their profile card.`,
+        previousValue,
+        updatedAgent
+      );
+
+      res.json(updatedAgent);
+    } catch (err: any) {
+      console.error("PUT /api/agents/:id/profile error:", err);
+      res.status(500).json({ error: "Failed to update agent profile" });
     }
-
-    writeLog(
-      id,
-      db.agents[index].email,
-      `${db.agents[index].firstName} ${db.agents[index].lastName}`,
-      UserRole.AGENT,
-      "Agent Profile Updated",
-      `Agent updated their profile card.`,
-      previousValue,
-      db.agents[index]
-    );
-
-    saveDB(db);
-    res.json(db.agents[index]);
   });
 
   // 4. BOOKINGS CLIENT MODULE ENDPOINTS
-  app.get("/api/bookings", (req, res) => {
-    const { agentId, status, search } = req.query;
-    let list = [...db.bookings];
+  app.get("/api/bookings", async (req, res) => {
+    try {
+      const { agentId, status, search } = req.query;
+      let list = await fetchBookings();
 
-    // Sort with earliest appointment first
-    list.sort((a, b) => {
-      const timeA = new Date(a.dateTime || `${a.appointmentDate}T${a.appointmentTime}`).getTime() || 0;
-      const timeB = new Date(b.dateTime || `${b.appointmentDate}T${b.appointmentTime}`).getTime() || 0;
-      return timeA - timeB;
-    });
+      // Sort with earliest appointment first
+      list.sort((a, b) => {
+        const timeA = new Date(a.dateTime || `${a.appointmentDate}T${a.appointmentTime}`).getTime() || 0;
+        const timeB = new Date(b.dateTime || `${b.appointmentDate}T${b.appointmentTime}`).getTime() || 0;
+        return timeA - timeB;
+      });
 
-    if (agentId) {
-      list = list.filter(b => b.agentId === agentId);
+      if (agentId) {
+        list = list.filter(b => b.agentId === agentId);
+      }
+
+      if (status) {
+        list = list.filter(b => b.status.toLowerCase() === String(status).toLowerCase());
+      }
+
+      if (search) {
+        const q = String(search).toLowerCase();
+        list = list.filter(b => 
+          b.id.toLowerCase().includes(q) ||
+          b.clientId.toLowerCase().includes(q) ||
+          b.clientName.toLowerCase().includes(q) ||
+          b.appointmentType.toLowerCase().includes(q) ||
+          (b.location && b.location.toLowerCase().includes(q)) ||
+          b.agentName.toLowerCase().includes(q)
+        );
+      }
+
+      const clients = await fetchClients();
+      const enrichedList = list.map(b => {
+        const client = clients.find(c => c.id === b.clientId);
+        return {
+          ...b,
+          clientMobile: client ? client.mobileNumber : "N/A",
+          clientAddress: client ? client.address : "N/A"
+        };
+      });
+
+      res.json(enrichedList);
+    } catch (err: any) {
+      console.error("GET /api/bookings error:", err);
+      res.status(500).json({ error: "Failed to load bookings" });
     }
+  });
 
-    if (status) {
-      list = list.filter(b => b.status.toLowerCase() === String(status).toLowerCase());
-    }
+  app.post("/api/bookings", async (req, res) => {
+    try {
+      const bdata = req.body;
+      const { userContext } = bdata;
 
-    if (search) {
-      const q = String(search).toLowerCase();
-      list = list.filter(b => 
-        b.id.toLowerCase().includes(q) ||
-        b.clientId.toLowerCase().includes(q) ||
-        b.clientName.toLowerCase().includes(q) ||
-        b.appointmentType.toLowerCase().includes(q) ||
-        (b.location && b.location.toLowerCase().includes(q)) ||
-        b.agentName.toLowerCase().includes(q)
-      );
-    }
+      // Get Client details
+      const clients = await fetchClients();
+      const client = clients.find(c => c.id === bdata.clientId);
+      if (!client) {
+        return res.status(404).json({ error: "Selected Client record was not found." });
+      }
 
-    const enrichedList = list.map(b => {
-      const client = db.clients.find(c => c.id === b.clientId);
-      return {
-        ...b,
-        clientMobile: client ? client.mobileNumber : "N/A",
-        clientAddress: client ? client.address : "N/A"
+      // Validate date & time overlap for this client
+      const bookings = await fetchBookings();
+      const targetDateTime = bdata.dateTime;
+      if (targetDateTime && bdata.status !== "Cancelled") {
+        const isOverlap = bookings.some(b => b.clientId === client.id && b.dateTime === targetDateTime && b.status !== "Cancelled");
+        if (isOverlap) {
+          return res.status(400).json({ error: `This client already has an appointment scheduled at this exact date and time. Please select another slot.` });
+        }
+      }
+
+      // Get Agent details
+      const agents = await fetchAgents();
+      const agent = agents.find(a => a.id === client.assignedAgentId) || {
+        id: userContext?.id || "agent_1",
+        firstName: "Sarah",
+        lastName: "Ramirez"
       };
-    });
 
-    res.json(enrichedList);
+      const newBooking: Booking = {
+        id: generateUniqueId("APT"),
+        clientId: client.id,
+        clientName: `${client.firstName} ${client.lastName}`,
+        agentId: agent.id,
+        agentName: `${agent.firstName} ${agent.lastName}`,
+        appointmentType: bdata.appointmentType || "site visit",
+        appointmentDate: bdata.appointmentDate || new Date().toISOString().split('T')[0],
+        appointmentTime: bdata.appointmentTime || "12:00",
+        dateTime: bdata.dateTime || `${bdata.appointmentDate || new Date().toISOString().split('T')[0]}T${bdata.appointmentTime || "12:05"}`,
+        location: bdata.location || "",
+        status: bdata.status || "Open",
+        notes: bdata.notes || "",
+        createdAt: new Date().toISOString()
+      };
+
+      const { error: bookingInsertErr } = await safeInsert("bookings", newBooking, BOOKING_MAPPINGS);
+      if (bookingInsertErr) {
+        console.error("Supabase insert booking failed:", bookingInsertErr.message);
+        return res.status(500).json({ error: `Failed to schedule appointment: ${bookingInsertErr.message}` });
+      }
+
+      // Add to session in-memory cache for resilient failover
+      memoryBookings.push(newBooking);
+
+      await writeLog(
+        userContext?.id || "agent_1",
+        userContext?.email || "sarah.ramirez@realtysync.com",
+        userContext?.userName || "Sarah Ramirez",
+        userContext?.role || UserRole.AGENT,
+        "Appointment Created",
+        `Appointment [${newBooking.appointmentType}] for ${newBooking.clientName}`,
+        null,
+        newBooking
+      );
+
+      res.status(201).json(newBooking);
+    } catch (err: any) {
+      console.error("POST /api/bookings error:", err);
+      res.status(500).json({ error: "Failed to create booking" });
+    }
   });
 
-  app.post("/api/bookings", (req, res) => {
-    const bdata = req.body;
-    const { userContext } = bdata;
+  app.put("/api/bookings/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, notes, appointmentType, appointmentDate, appointmentTime, dateTime, location, userContext } = req.body;
 
-    // Get Client details
-    const client = db.clients.find(c => c.id === bdata.clientId);
-    if (!client) {
-      return res.status(404).json({ error: "Selected Client record was not found." });
-    }
-
-    // Validate date & time overlap for this client
-    const targetDateTime = bdata.dateTime;
-    if (targetDateTime && bdata.status !== "Cancelled") {
-      const isOverlap = db.bookings.some(b => b.clientId === client.id && b.dateTime === targetDateTime && b.status !== "Cancelled");
-      if (isOverlap) {
-        return res.status(400).json({ error: `This client already has an appointment scheduled at this exact date and time. Please select another slot.` });
+      const bookings = await fetchBookings();
+      const existingBooking = bookings.find(b => b.id === id);
+      if (!existingBooking) {
+        return res.status(404).json({ error: "Appointment record not found" });
       }
-    }
 
-    // Get Agent details
-    const agent = db.agents.find(a => a.id === client.assignedAgentId) || {
-      id: userContext?.id || "agent_1",
-      firstName: "Sarah",
-      lastName: "Ramirez"
-    };
-
-    const newBooking: Booking = {
-      id: generateUniqueId("APT"),
-      clientId: client.id,
-      clientName: `${client.firstName} ${client.lastName}`,
-      agentId: agent.id,
-      agentName: `${agent.firstName} ${agent.lastName}`,
-      appointmentType: bdata.appointmentType || "site visit",
-      appointmentDate: bdata.appointmentDate || new Date().toISOString().split('T')[0],
-      appointmentTime: bdata.appointmentTime || "12:00",
-      dateTime: bdata.dateTime || `${bdata.appointmentDate || new Date().toISOString().split('T')[0]}T${bdata.appointmentTime || "12:05"}`,
-      location: bdata.location || "",
-      status: bdata.status || "Open",
-      notes: bdata.notes || "",
-      createdAt: new Date().toISOString()
-    };
-
-    db.bookings.unshift(newBooking);
-
-    writeLog(
-      userContext?.id || "agent_1",
-      userContext?.email || "sarah.ramirez@realtysync.com",
-      userContext?.userName || "Sarah Ramirez",
-      userContext?.role || UserRole.AGENT,
-      "Appointment Created",
-      `Appointment [${newBooking.appointmentType}] for ${newBooking.clientName}`,
-      null,
-      newBooking
-    );
-
-    saveDB(db);
-    res.status(201).json(newBooking);
-  });
-
-  app.put("/api/bookings/:id", (req, res) => {
-    const { id } = req.params;
-    const { status, notes, appointmentType, appointmentDate, appointmentTime, dateTime, location, userContext } = req.body;
-
-    const index = db.bookings.findIndex(b => b.id === id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Appointment record not found" });
-    }
-
-    // Overlap validation for updates
-    if (dateTime && status !== "Cancelled") {
-      const clientId = db.bookings[index].clientId;
-      const isOverlap = db.bookings.some(b => b.id !== id && b.clientId === clientId && b.dateTime === dateTime && b.status !== "Cancelled");
-      if (isOverlap) {
-        return res.status(400).json({ error: `This client already has an appointment scheduled at this exact date and time. Please select another slot.` });
+      // Overlap validation for updates
+      if (dateTime && status !== "Cancelled") {
+        const clientId = existingBooking.clientId;
+        const isOverlap = bookings.some(b => b.id !== id && b.clientId === clientId && b.dateTime === dateTime && b.status !== "Cancelled");
+        if (isOverlap) {
+          return res.status(400).json({ error: `This client already has an appointment scheduled at this exact date and time. Please select another slot.` });
+        }
       }
+
+      const previousValue = { ...existingBooking };
+
+      const updatedBooking: Booking = {
+        ...existingBooking,
+        status: status ?? existingBooking.status,
+        notes: notes ?? existingBooking.notes,
+        appointmentType: appointmentType ?? existingBooking.appointmentType,
+        appointmentDate: appointmentDate ?? existingBooking.appointmentDate,
+        appointmentTime: appointmentTime ?? existingBooking.appointmentTime,
+        dateTime: dateTime ?? existingBooking.dateTime,
+        location: location ?? existingBooking.location,
+      };
+
+      const { error: bookingUpdateErr } = await safeUpdate("bookings", updatedBooking, id, BOOKING_MAPPINGS);
+      if (bookingUpdateErr) {
+        console.error("Supabase update booking failed:", bookingUpdateErr.message);
+        return res.status(500).json({ error: `Failed to update appointment: ${bookingUpdateErr.message}` });
+      }
+
+      // Add to session in-memory cache for resilient failover
+      const bIdx = memoryBookings.findIndex(b => b.id === id);
+      if (bIdx !== -1) {
+        memoryBookings[bIdx] = updatedBooking;
+      } else {
+        memoryBookings.push(updatedBooking);
+      }
+
+      await writeLog(
+        userContext?.id || "admin_user",
+        userContext?.email || "admin@realtysync.com",
+        userContext?.userName || "Admin",
+        userContext?.role || UserRole.ADMIN,
+        `Appointment Status to '${updatedBooking.status}'`,
+        `Appointment ID: ${id} (${updatedBooking.clientName})`,
+        previousValue,
+        updatedBooking
+      );
+
+      res.json(updatedBooking);
+    } catch (err: any) {
+      console.error("PUT /api/bookings/:id error:", err);
+      res.status(500).json({ error: "Failed to update booking" });
     }
-
-    const previousValue = { ...db.bookings[index] };
-
-    db.bookings[index] = {
-      ...db.bookings[index],
-      status: status ?? db.bookings[index].status,
-      notes: notes ?? db.bookings[index].notes,
-      appointmentType: appointmentType ?? db.bookings[index].appointmentType,
-      appointmentDate: appointmentDate ?? db.bookings[index].appointmentDate,
-      appointmentTime: appointmentTime ?? db.bookings[index].appointmentTime,
-      dateTime: dateTime ?? db.bookings[index].dateTime,
-      location: location ?? db.bookings[index].location,
-    };
-
-    writeLog(
-      userContext?.id || "admin_user",
-      userContext?.email || "admin@realtysync.com",
-      userContext?.userName || "Admin",
-      userContext?.role || UserRole.ADMIN,
-      `Appointment Status to '${db.bookings[index].status}'`,
-      `Appointment ID: ${id} (${db.bookings[index].clientName})`,
-      previousValue,
-      db.bookings[index]
-    );
-
-    saveDB(db);
-    res.json(db.bookings[index]);
   });
 
   // 5. DUAL ENTRY COMPONENT ROUTING (For Admin Conflict Resolution)
-  app.get("/api/dual-entries", (req, res) => {
-    // Return complete dual entries conflicts
-    res.json(db.dualEntries);
-  });
-
-  app.get("/api/realty-projects", (req, res) => {
-    res.json(db.realtyProjects || DEFAULT_REALTY_PROJECTS);
-  });
-
-  app.post("/api/dual-entries/:id/resolve", (req, res) => {
-    const { id } = req.params;
-    const { action, resolutionStatus, winningClientIdx, userContext } = req.body; // action: 'Mark Duplicate' | 'Mark False Positive' | 'Resolve'
-    
-    const index = db.dualEntries.findIndex(d => d.id === id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Dual Entry record not found" });
+  app.get("/api/dual-entries", async (req, res) => {
+    try {
+      const duals = await fetchDualEntries();
+      res.json(duals);
+    } catch (err: any) {
+      console.error("GET /api/dual-entries error:", err);
+      res.status(500).json({ error: "Failed to fetch dual entries" });
     }
+  });
 
-    const currentDual = db.dualEntries[index];
-    const previousStateString = JSON.stringify(currentDual);
+  app.get("/api/realty-projects", async (req, res) => {
+    try {
+      const projects = await fetchRealtyProjects();
+      res.json(projects);
+    } catch (err: any) {
+      console.error("GET /api/realty-projects error:", err);
+      res.json(DEFAULT_REALTY_PROJECTS);
+    }
+  });
 
-    // Apply outcome to conflicts db
-    currentDual.status = resolutionStatus; // Confirmed Duplicate, False Positive, Resolved
+  app.post("/api/dual-entries/:id/resolve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action, resolutionStatus, winningClientIdx, userContext } = req.body; // action: 'Mark Duplicate' | 'Mark False Positive' | 'Resolve'
+      
+      const duals = await fetchDualEntries();
+      const currentDual = duals.find(d => d.id === id);
+      if (!currentDual) {
+        return res.status(404).json({ error: "Dual Entry record not found" });
+      }
 
-    // If resolved or marked duplicate, let's update client statuses
-    if (resolutionStatus === "Confirmed Duplicate" || resolutionStatus === "Resolved") {
-      const idA = currentDual.clientIdA;
-      const idB = currentDual.clientIdB;
+      const previousStateString = JSON.stringify(currentDual);
 
-      const idxA = db.clients.findIndex(c => c.id === idA);
-      const idxB = db.clients.findIndex(c => c.id === idB);
+      // Apply outcome to conflicts db
+      currentDual.status = resolutionStatus; // Confirmed Duplicate, False Positive, Resolved
 
-      if (idxA !== -1) db.clients[idxA].duplicateStatus = "None"; // Clear flag on status update
-      if (idxB !== -1) {
-        if (action === "Mark Duplicate" || winningClientIdx === 1) {
-          // Client B is conflict duplicate, assign status to strong, or let's say client B is duplicate
-          db.clients[idxB].duplicateStatus = "Strong";
-        } else {
-          db.clients[idxB].duplicateStatus = "None";
+      // Update dual entry in Supabase
+      const { error: dualUpdErr } = await safeUpdate("dual_entries", currentDual, id, DUAL_ENTRY_MAPPINGS);
+      if (dualUpdErr) {
+        console.error("Supabase update dual_entries failed:", dualUpdErr.message);
+        return res.status(500).json({ error: `Failed to resolve dual entry: ${dualUpdErr.message}` });
+      }
+
+      // If resolved or marked duplicate, let's update client statuses
+      if (resolutionStatus === "Confirmed Duplicate" || resolutionStatus === "Resolved") {
+        const idA = currentDual.clientIdA;
+        const idB = currentDual.clientIdB;
+
+        const clientsLst = await fetchClients();
+        const clientA = clientsLst.find(c => c.id === idA);
+        const clientB = clientsLst.find(c => c.id === idB);
+
+        if (clientA) {
+          clientA.duplicateStatus = "None";
+          await safeUpdate("clients", clientA, idA, CLIENT_MAPPINGS);
+        }
+        
+        if (clientB) {
+          if (action === "Mark Duplicate" || winningClientIdx === 1) {
+            clientB.duplicateStatus = "Strong";
+          } else {
+            clientB.duplicateStatus = "None";
+          }
+          await safeUpdate("clients", clientB, idB, CLIENT_MAPPINGS);
+        }
+      } else if (resolutionStatus === "False Positive") {
+        const clientsLst = await fetchClients();
+        const clientA = clientsLst.find(c => c.id === currentDual.clientIdA);
+        const clientB = clientsLst.find(c => c.id === currentDual.clientIdB);
+        if (clientA) {
+          clientA.duplicateStatus = "None";
+          await safeUpdate("clients", clientA, clientA.id, CLIENT_MAPPINGS);
+        }
+        if (clientB) {
+          clientB.duplicateStatus = "None";
+          await safeUpdate("clients", clientB, clientB.id, CLIENT_MAPPINGS);
         }
       }
-    } else if (resolutionStatus === "False Positive") {
-      const idxA = db.clients.findIndex(c => c.id === currentDual.clientIdA);
-      const idxB = db.clients.findIndex(c => c.id === currentDual.clientIdB);
-      if (idxA !== -1) db.clients[idxA].duplicateStatus = "None";
-      if (idxB !== -1) db.clients[idxB].duplicateStatus = "None";
+
+      await writeLog(
+        userContext?.id || "admin_user",
+        userContext?.email || "admin@realtysync.com",
+        userContext?.userName || "Admin",
+        UserRole.ADMIN,
+        `Dual Entry Resolved: ${action}`,
+        `Conflict involving '${currentDual.clientName}'`,
+        previousStateString,
+        JSON.stringify(currentDual)
+      );
+
+      res.json(currentDual);
+    } catch (err: any) {
+      console.error("POST /api/dual-entries/:id/resolve error:", err);
+      res.status(500).json({ error: "Failed to resolve dual entry" });
     }
-
-    writeLog(
-      userContext?.id || "admin_user",
-      userContext?.email || "admin@realtysync.com",
-      userContext?.userName || "Admin",
-      UserRole.ADMIN,
-      `Dual Entry Resolved: ${action}`,
-      `Conflict involving '${currentDual.clientName}'`,
-      previousStateString,
-      JSON.stringify(currentDual)
-    );
-
-    saveDB(db);
-    res.json(currentDual);
   });
 
   // 6. GENERAL NOTIFICATIONS
-  app.get("/api/notifications", (req, res) => {
-    res.json(db.notifications);
+  app.get("/api/notifications", async (req, res) => {
+    try {
+      const notifs = await fetchNotifications();
+      res.json(notifs);
+    } catch (err: any) {
+      console.error("GET /api/notifications error:", err);
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
   });
 
-  app.post("/api/notifications/clear", (req, res) => {
-    db.notifications.forEach(n => n.read = true);
-    saveDB(db);
-    res.json({ status: "success" });
+  app.post("/api/notifications/clear", async (req, res) => {
+    try {
+      await supabase.from("notifications").update({ read: true }).eq("read", false);
+      res.json({ status: "success" });
+    } catch (err: any) {
+      console.error("POST /api/notifications/clear error:", err);
+      res.status(500).json({ error: "Failed to clear notifications" });
+    }
+  });
+
+  // Simulated Email Dispatch Logs for demo / admin audit purposes
+  app.get("/api/simulated-emails", (req, res) => {
+    try {
+      res.json(loadSimulatedEmails());
+    } catch (err) {
+      res.status(500).json({ error: "Failed to read simulated email list" });
+    }
+  });
+
+  app.delete("/api/simulated-emails", (req, res) => {
+    try {
+      saveSimulatedEmails([]);
+      res.json({ status: "success" });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to clear simulated emails" });
+    }
   });
 
   // 7. REPORTS MODULE ENDPOINTS & EXPORTS
-  app.get("/api/reports/summary", (req, res) => {
-    const { agentId } = req.query;
+  app.get("/api/reports/summary", async (req, res) => {
+    try {
+      const { agentId } = req.query;
 
-    // Agent Leaderboard sorted by performance score (registered clients + done reservations + done payment appointments)
-    const leaderboard = db.agents.map(a => {
-      const agentClients = db.clients.filter(c => c.assignedAgentId === a.id);
-      const agentBookings = db.bookings.filter(b => b.agentId === a.id);
+      const agents = await fetchAgents();
+      const clients = await fetchClients();
+      const bookings = await fetchBookings();
 
-      const doneReservations = agentBookings.filter(b => 
-        String(b.appointmentType).toLowerCase() === "reservation" && 
-        String(b.status).toLowerCase() === "done"
-      ).length;
+      // Agent Leaderboard sorted by performance score (registered clients + done reservations + done payment appointments)
+      const leaderboard = agents.map(a => {
+        const agentClients = clients.filter(c => c.assignedAgentId === a.id);
+        const agentBookings = bookings.filter(b => b.agentId === a.id);
 
-      const donePayments = agentBookings.filter(b => 
-        String(b.appointmentType).toLowerCase() === "payment" && 
-        String(b.status).toLowerCase() === "done"
-      ).length;
+        const doneReservations = agentBookings.filter(b => 
+          String(b.appointmentType).toLowerCase() === "reservation" && 
+          String(b.status).toLowerCase() === "done"
+        ).length;
 
-      const performanceScore = agentClients.length + doneReservations + donePayments;
+        const donePayments = agentBookings.filter(b => 
+          String(b.appointmentType).toLowerCase() === "payment" && 
+          String(b.status).toLowerCase() === "done"
+        ).length;
 
-      const salesVolume = agentBookings.filter(b => b.status !== "Cancelled").length * 20050;
+        const performanceScore = agentClients.length + doneReservations + donePayments;
 
-      return {
-        id: a.id,
-        name: `${a.firstName} ${a.lastName}`,
-        clientsCount: agentClients.length,
-        bookingsCount: agentBookings.length,
-        doneReservations,
-        donePayments,
-        performanceScore,
-        salesVolume,
-        status: a.status
-      };
-    }).sort((a,b) => b.performanceScore - a.performanceScore);
+        const salesVolume = agentBookings.filter(b => b.status !== "Cancelled").length * 20050;
 
-    // Manila Today Date YYYY-MM-DD
-    const localDate = new Date();
-    const manilaOffset = 8 * 60 * 60 * 1000;
-    const manilaTime = new Date(localDate.getTime() + (localDate.getTimezoneOffset() * 60000) + manilaOffset);
-    const todayStr = manilaTime.toISOString().split("T")[0]; // YYYY-MM-DD
-
-    const typeKeys = ["Site Visit", "Reservation", "Submit Requirements", "Payment", "Inquiry", "Meeting", "Release of Title"];
-
-    if (agentId) {
-      const targetAgentId = String(agentId);
-      const agentClients = db.clients.filter(c => c.assignedAgentId === targetAgentId);
-      const agentBookings = db.bookings.filter(b => b.agentId === targetAgentId);
-
-      const totalClients = agentClients.length;
-      const totalOpenBookings = agentBookings.filter(b => ["New", "Reserved", "Processing", "Proposed", "Open"].includes(b.status)).length;
-      const totalBookings = agentBookings.length; // total reservation count
-      const totalCompletedSales = agentBookings.filter(b => b.status === "Approved" || b.status === "Done").length;
-      const totalDownPayment = agentBookings
-        .filter(b => b.status !== "Cancelled")
-        .length * 20050;
-      const totalDuplicates = agentClients.filter(c => c.duplicateStatus !== "None").length;
-
-      // Filter booked today
-      const registeredToday = agentClients.filter(c => c.dateRegistered.startsWith(todayStr)).length;
-      const bookingsToday = agentBookings.filter(b => b.appointmentDate === todayStr).length;
-
-      // Appointment counts today specifically for this agent
-      const appointmentTypeCountsToday: Record<string, number> = {};
-      const appointmentTypeStatusBreakdownToday: Record<string, { open: number, done: number, cancelled: number }> = {};
-      typeKeys.forEach(t => {
-        const bookingsOfTypeToday = agentBookings.filter(b => 
-          b.appointmentDate === todayStr && 
-          String(b.appointmentType).toLowerCase() === t.toLowerCase()
-        );
-        appointmentTypeCountsToday[t] = bookingsOfTypeToday.length;
-        appointmentTypeStatusBreakdownToday[t] = {
-          open: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "open").length,
-          done: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "done" || String(b.status).toLowerCase() === "approved" || String(b.status).toLowerCase() === "completed").length,
-          cancelled: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "cancelled").length
+        return {
+          id: a.id,
+          name: `${a.firstName} ${a.lastName}`,
+          clientsCount: agentClients.length,
+          bookingsCount: agentBookings.length,
+          doneReservations,
+          donePayments,
+          performanceScore,
+          salesVolume,
+          status: a.status
         };
-      });
+      }).sort((a,b) => b.performanceScore - a.performanceScore);
 
-      // Overall type counts for this agent
-      const appointmentTypeCountsOverall = typeKeys.map(t => ({
-        type: t,
-        count: agentBookings.filter(b => String(b.appointmentType).toLowerCase() === t.toLowerCase()).length
-      }));
+      // Manila Today Date YYYY-MM-DD
+      const localDate = new Date();
+      const manilaOffset = 8 * 60 * 60 * 1000;
+      const manilaTime = new Date(localDate.getTime() + (localDate.getTimezoneOffset() * 60000) + manilaOffset);
+      const todayStr = manilaTime.toISOString().split("T")[0]; // YYYY-MM-DD
 
-      // Monthly bookings trend for this agent
-      const monthlyBookings = [
-        { month: "Jan", count: 0 },
-        { month: "Feb", count: 1 },
-        { month: "Mar", count: 1 },
-        { month: "Apr", count: 0 },
-        { month: "May", count: agentBookings.filter(b => b.appointmentDate.includes("-05-")).length },
-        { month: "Jun", count: agentBookings.filter(b => b.appointmentDate.includes("-06-")).length }
-      ];
+      const typeKeys = ["Site Visit", "Reservation", "Submit Requirements", "Payment", "Inquiry", "Meeting", "Release of Title"];
 
-      // Monthly registrations trend for this agent
-      const monthlyRegistrations = [
-        { month: "Jan", count: 0 },
-        { month: "Feb", count: 0 },
-        { month: "Mar", count: 1 },
-        { month: "Apr", count: 1 },
-        { month: "May", count: agentClients.filter(c => c.dateRegistered.includes("-05-")).length },
-        { month: "Jun", count: agentClients.filter(c => c.dateRegistered.includes("-06-")).length }
-      ];
+      if (agentId) {
+        const targetAgentId = String(agentId);
+        const agentClients = clients.filter(c => c.assignedAgentId === targetAgentId);
+        const agentBookings = bookings.filter(b => b.agentId === targetAgentId);
 
-      res.json({
-        totalClients,
-        totalOpenBookings,
-        totalBookings,
-        totalCompletedSales,
-        totalDownPayment,
-        totalDuplicates,
-        registeredToday,
-        bookingsToday,
-        leaderboard,
-        appointmentTypeCountsToday,
-        appointmentTypeCountsOverall,
-        appointmentTypeStatusBreakdownToday,
-        monthlyBookings,
-        monthlyRegistrations
-      });
-    } else {
-      // Gather global statistics
-      const totalActiveAgents = db.agents.filter(a => a.status === "Active").length;
-      const totalClients = db.clients.length;
-      const totalBookings = db.bookings.length;
-      const totalDuplicates = db.clients.filter(c => c.duplicateStatus !== "None").length;
+        const totalClients = agentClients.length;
+        const totalOpenBookings = agentBookings.filter(b => ["New", "Reserved", "Processing", "Proposed", "Open"].includes(b.status)).length;
+        const totalBookings = agentBookings.length; // total reservation count
+        const totalCompletedSales = agentBookings.filter(b => b.status === "Approved" || b.status === "Done").length;
+        const totalDownPayment = agentBookings
+          .filter(b => b.status !== "Cancelled")
+          .length * 20050;
+        const totalDuplicates = agentClients.filter(c => c.duplicateStatus !== "None").length;
 
-      // Filter booked today
-      const registeredToday = db.clients.filter(c => c.dateRegistered.startsWith(todayStr)).length;
-      const bookingsToday = db.bookings.filter(b => b.appointmentDate === todayStr).length;
+        // Filter booked today
+        const registeredToday = agentClients.filter(c => c.dateRegistered.startsWith(todayStr)).length;
+        const bookingsToday = agentBookings.filter(b => b.appointmentDate === todayStr).length;
 
-      // Appointment counts today specifically (Global)
-      const appointmentTypeCountsToday: Record<string, number> = {};
-      const appointmentTypeStatusBreakdownToday: Record<string, { open: number, done: number, cancelled: number }> = {};
-      typeKeys.forEach(t => {
-        const bookingsOfTypeToday = db.bookings.filter(b => 
-          b.appointmentDate === todayStr && 
-          String(b.appointmentType).toLowerCase() === t.toLowerCase()
-        );
-        appointmentTypeCountsToday[t] = bookingsOfTypeToday.length;
-        appointmentTypeStatusBreakdownToday[t] = {
-          open: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "open").length,
-          done: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "done" || String(b.status).toLowerCase() === "approved" || String(b.status).toLowerCase() === "completed").length,
-          cancelled: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "cancelled").length
-        };
-      });
+        // Appointment counts today specifically for this agent
+        const appointmentTypeCountsToday: Record<string, number> = {};
+        const appointmentTypeStatusBreakdownToday: Record<string, { open: number, done: number, cancelled: number }> = {};
+        typeKeys.forEach(t => {
+          const bookingsOfTypeToday = agentBookings.filter(b => 
+            b.appointmentDate === todayStr && 
+            String(b.appointmentType).toLowerCase() === t.toLowerCase()
+          );
+          appointmentTypeCountsToday[t] = bookingsOfTypeToday.length;
+          appointmentTypeStatusBreakdownToday[t] = {
+            open: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "open").length,
+            done: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "done" || String(b.status).toLowerCase() === "approved" || String(b.status).toLowerCase() === "completed").length,
+            cancelled: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "cancelled").length
+          };
+        });
 
-      // Overall type counts (Global)
-      const appointmentTypeCountsOverall = typeKeys.map(t => ({
-        type: t,
-        count: db.bookings.filter(b => String(b.appointmentType).toLowerCase() === t.toLowerCase()).length
-      }));
+        // Overall type counts for this agent
+        const appointmentTypeCountsOverall = typeKeys.map(t => ({
+          type: t,
+          count: agentBookings.filter(b => String(b.appointmentType).toLowerCase() === t.toLowerCase()).length
+        }));
 
-      // Monthly Analytics trend (June & May)
-      const monthlyRegistrations = [
-        { month: "Jan", count: 2 },
-        { month: "Feb", count: 4 },
-        { month: "Mar", count: 5 },
-        { month: "Apr", count: 3 },
-        { month: "May", count: 8 },
-        { month: "Jun", count: db.clients.filter(c => c.dateRegistered.includes("-06-")).length || 6 }
-      ];
+        // Monthly bookings trend for this agent
+        const monthlyBookings = [
+          { month: "Jan", count: 0 },
+          { month: "Feb", count: 1 },
+          { month: "Mar", count: 1 },
+          { month: "Apr", count: 0 },
+          { month: "May", count: agentBookings.filter(b => b.appointmentDate.includes("-05-")).length },
+          { month: "Jun", count: agentBookings.filter(b => b.appointmentDate.includes("-06-")).length }
+        ];
 
-      // Monthly bookings trend (Global)
-      const monthlyBookings = [
-        { month: "Jan", count: 2 },
-        { month: "Feb", count: 3 },
-        { month: "Mar", count: 4 },
-        { month: "Apr", count: 5 },
-        { month: "May", count: db.bookings.filter(b => b.appointmentDate.includes("-05-")).length + 4 },
-        { month: "Jun", count: db.bookings.filter(b => b.appointmentDate.includes("-06-")).length + 6 }
-      ];
+        // Monthly registrations trend for this agent
+        const monthlyRegistrations = [
+          { month: "Jan", count: 0 },
+          { month: "Feb", count: 0 },
+          { month: "Mar", count: 1 },
+          { month: "Apr", count: 1 },
+          { month: "May", count: agentClients.filter(c => c.dateRegistered.includes("-05-")).length },
+          { month: "Jun", count: agentClients.filter(c => c.dateRegistered.includes("-06-")).length }
+        ];
 
-      const duplicateTrends = [
-        { status: "Strong", count: db.clients.filter(c => c.duplicateStatus === "Strong").length },
-        { status: "Possible", count: db.clients.filter(c => c.duplicateStatus === "Possible").length },
-        { status: "None", count: db.clients.filter(c => c.duplicateStatus === "None").length }
-      ];
+        res.json({
+          totalClients,
+          totalOpenBookings,
+          totalBookings,
+          totalCompletedSales,
+          totalDownPayment,
+          totalDuplicates,
+          registeredToday,
+          bookingsToday,
+          leaderboard,
+          appointmentTypeCountsToday,
+          appointmentTypeCountsOverall,
+          appointmentTypeStatusBreakdownToday,
+          monthlyBookings,
+          monthlyRegistrations
+        });
+      } else {
+        // Gather global statistics
+        const totalActiveAgents = agents.filter(a => a.status === "Active").length;
+        const totalClients = clients.length;
+        const totalBookings = bookings.length;
+        const totalDuplicates = clients.filter(c => c.duplicateStatus !== "None").length;
 
-      res.json({
-        totalActiveAgents,
-        totalClients,
-        totalBookings,
-        totalDuplicates,
-        registeredToday,
-        bookingsToday,
-        leaderboard,
-        monthlyRegistrations,
-        monthlyBookings,
-        appointmentTypeCountsToday,
-        appointmentTypeCountsOverall,
-        appointmentTypeStatusBreakdownToday,
-        duplicateTrends
-      });
-    };
+        // Filter booked today
+        const registeredToday = clients.filter(c => c.dateRegistered.startsWith(todayStr)).length;
+        const bookingsToday = bookings.filter(b => b.appointmentDate === todayStr).length;
+
+        // Appointment counts today specifically (Global)
+        const appointmentTypeCountsToday: Record<string, number> = {};
+        const appointmentTypeStatusBreakdownToday: Record<string, { open: number, done: number, cancelled: number }> = {};
+        typeKeys.forEach(t => {
+          const bookingsOfTypeToday = bookings.filter(b => 
+            b.appointmentDate === todayStr && 
+            String(b.appointmentType).toLowerCase() === t.toLowerCase()
+          );
+          appointmentTypeCountsToday[t] = bookingsOfTypeToday.length;
+          appointmentTypeStatusBreakdownToday[t] = {
+            open: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "open").length,
+            done: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "done" || String(b.status).toLowerCase() === "approved" || String(b.status).toLowerCase() === "completed").length,
+            cancelled: bookingsOfTypeToday.filter(b => String(b.status).toLowerCase() === "cancelled").length
+          };
+        });
+
+        // Overall type counts (Global)
+        const appointmentTypeCountsOverall = typeKeys.map(t => ({
+          type: t,
+          count: bookings.filter(b => String(b.appointmentType).toLowerCase() === t.toLowerCase()).length
+        }));
+
+        // Monthly Analytics trend (June & May)
+        const monthlyRegistrations = [
+          { month: "Jan", count: 2 },
+          { month: "Feb", count: 4 },
+          { month: "Mar", count: 5 },
+          { month: "Apr", count: 3 },
+          { month: "May", count: 8 },
+          { month: "Jun", count: clients.filter(c => c.dateRegistered.includes("-06-")).length || 6 }
+        ];
+
+        // Monthly bookings trend (Global)
+        const monthlyBookings = [
+          { month: "Jan", count: 2 },
+          { month: "Feb", count: 3 },
+          { month: "Mar", count: 4 },
+          { month: "Apr", count: 5 },
+          { month: "May", count: bookings.filter(b => b.appointmentDate.includes("-05-")).length + 4 },
+          { month: "Jun", count: bookings.filter(b => b.appointmentDate.includes("-06-")).length + 6 }
+        ];
+
+        const duplicateTrends = [
+          { status: "Strong", count: clients.filter(c => c.duplicateStatus === "Strong").length },
+          { status: "Possible", count: clients.filter(c => c.duplicateStatus === "Possible").length },
+          { status: "None", count: clients.filter(c => c.duplicateStatus === "None").length }
+        ];
+
+        res.json({
+          totalActiveAgents,
+          totalClients,
+          totalBookings,
+          totalDuplicates,
+          registeredToday,
+          bookingsToday,
+          leaderboard,
+          monthlyRegistrations,
+          monthlyBookings,
+          appointmentTypeCountsToday,
+          appointmentTypeCountsOverall,
+          appointmentTypeStatusBreakdownToday,
+          duplicateTrends
+        });
+      }
+    } catch (err: any) {
+      console.error("GET /api/reports/summary error:", err);
+      res.status(500).json({ error: "Failed to load reports summary" });
+    }
   });
 
   // Audit Logs view
-  app.get("/api/reports/audit-logs", (req, res) => {
-    res.json(db.auditLogs);
+  app.get("/api/reports/audit-logs", async (req, res) => {
+    try {
+      const logs = await fetchAuditLogs();
+      res.json(logs);
+    } catch (err: any) {
+      console.error("GET /api/reports/audit-logs error:", err);
+      res.status(500).json({ error: "Failed to load audit logs" });
+    }
   });
 
   // Background interval to check for upcoming appointments (1-hour notice reminder)
-  setInterval(() => {
+  setInterval(async () => {
     try {
       const parts = new Intl.DateTimeFormat("en-US", {
         timeZone: "Asia/Manila",
@@ -2054,11 +2774,12 @@ async function startServer() {
       const currentManilaLocalStr = `${y}-${m}-${d}T${hr}:${min}:00`;
       const nowMs = new Date(currentManilaLocalStr).getTime();
 
-      let dbModified = false;
+      const bookings = await fetchBookings();
+      const agents = await fetchAgents();
 
-      db.bookings.forEach((b: any) => {
+      for (const b of bookings) {
         if (!b.appointmentDate || !b.appointmentTime || b.status === "Cancelled" || b.notified1Hr) {
-          return;
+          continue;
         }
 
         const apptMs = new Date(`${b.appointmentDate}T${b.appointmentTime}:00`).getTime();
@@ -2067,18 +2788,19 @@ async function startServer() {
 
         // Notify if scheduled appointment starts within 60 minutes (1 hour) of the current local time
         if (diffMinutes >= 0 && diffMinutes <= 60 && !b.notified1Hr) {
-          b.notified1Hr = true;
-          dbModified = true;
-
           // Find the agent details
-          const agent = db.agents.find((a: any) => a.id === b.agentId);
+          const agent = agents.find((a: any) => a.id === b.agentId);
           if (agent) {
             const title = `🚨 Upcoming Schedule Reminder (1 HR Notice)`;
             const message = `REALTYSYNC NOTICE: Hi ${agent.firstName} ${agent.lastName}, you have a "${b.appointmentType}" appointment scheduled with client "${b.clientName}" in 1 hour (at ${b.appointmentTime} on ${b.appointmentDate}). Please prepare!`;
 
-            // 1. Add to In-app notifications
+            // 1. Mark notified in database
+            b.notified1Hr = true;
+            await safeUpdate("bookings", b, b.id, BOOKING_MAPPINGS);
+
+            // 2. Add to In-app notifications in Supabase
             const notifId = `notif_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-            db.notifications.unshift({
+            const notification = {
               id: notifId,
               title,
               message,
@@ -2087,10 +2809,11 @@ async function startServer() {
               timestamp: new Date().toISOString(),
               agentId: agent.id,
               clientId: b.clientId
-            });
+            };
+            await safeInsert("notifications", notification, NOTIFICATION_MAPPINGS);
 
-            // 2. Add to Audit logs
-            writeLog(
+            // 3. Add to Audit logs
+            await writeLog(
               "system_notifier",
               "notifier@realtysync.com",
               "RealtySync Notifier Service",
@@ -2099,7 +2822,7 @@ async function startServer() {
               `Alerted ${agent.firstName} ${agent.lastName} via Email (${agent.email}) & SMS (${agent.mobileNumber || "N/A"})`
             );
 
-            // 3. Print actual simulated terminal transmissions beautifully
+            // 4. Print actual simulated terminal transmissions beautifully
             console.log(`\n========================================================================`);
             console.log(`✉️  [MAIL TRANSMISSION SUCCESS]`);
             console.log(`   To:      ${agent.email}`);
@@ -2112,10 +2835,6 @@ async function startServer() {
             console.log(`========================================================================\n`);
           }
         }
-      });
-
-      if (dbModified) {
-        saveDB(db);
       }
     } catch (err) {
       console.error("Error running automated 1-hour schedule reminder worker:", err);

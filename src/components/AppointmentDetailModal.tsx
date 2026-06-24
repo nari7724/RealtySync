@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from "react";
+import { MessageModal } from "./MessageModal.tsx";
 import { 
   X, 
   Calendar, 
@@ -83,6 +84,14 @@ export function AppointmentDetailModal({ booking, currentUser, onClose, onRefres
     onConfirm: () => void;
   } | null>(null);
 
+  const [msgModal, setMsgModal] = useState<{
+    isOpen: boolean;
+    type: "success" | "error";
+    title: string;
+    message: string;
+    onClose?: () => void;
+  }>({ isOpen: false, type: "success", title: "", message: "" });
+
   const getStatusStyle = (status: BookingStatus) => {
     switch (String(status).toLowerCase()) {
       case "open": return "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900";
@@ -114,14 +123,34 @@ export function AppointmentDetailModal({ booking, currentUser, onClose, onRefres
             }),
           });
           if (res.ok) {
-            onRefresh();
-            onClose();
+            setMsgModal({
+              isOpen: true,
+              type: "success",
+              title: "Status Updated",
+              message: `The appointment has been successfully updated to '${newStatus}'!`,
+              onClose: () => {
+                onRefresh();
+                onClose();
+              }
+            });
           } else {
             const errObj = await res.json();
             setErrorText(errObj.error || "Failed to update status.");
+            setMsgModal({
+              isOpen: true,
+              type: "error",
+              title: "Update Failed",
+              message: errObj.error || "Failed to update status."
+            });
           }
         } catch (err: any) {
           setErrorText(err.message || "An unexpected error occurred.");
+          setMsgModal({
+            isOpen: true,
+            type: "error",
+            title: "Update Failed",
+            message: err.message || "An unexpected error occurred."
+          });
         } finally {
           setUpdatingStatus(null);
         }
@@ -175,10 +204,24 @@ export function AppointmentDetailModal({ booking, currentUser, onClose, onRefres
           }
 
           setIsEditing(false);
-          onRefresh();
-          onClose();
+          setMsgModal({
+            isOpen: true,
+            type: "success",
+            title: "Appointment Saved",
+            message: "The appointment details have been successfully saved and updated!",
+            onClose: () => {
+              onRefresh();
+              onClose();
+            }
+          });
         } catch (err: any) {
           setErrorText(err.message || "An unexpected error occurred while saving booking details.");
+          setMsgModal({
+            isOpen: true,
+            type: "error",
+            title: "Save Failed",
+            message: err.message || "An unexpected error occurred while saving booking details."
+          });
         } finally {
           setSaving(false);
         }
@@ -315,7 +358,7 @@ export function AppointmentDetailModal({ booking, currentUser, onClose, onRefres
                   </div>
                 </div>
 
-                {editForm.appointmentType === "Site Visit" && REALTY_PROJECT_ADDRESSES[editForm.location] && (
+                {String(editForm.appointmentType).toLowerCase() === "site visit" && REALTY_PROJECT_ADDRESSES[editForm.location] && (
                   <div className="p-3 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900 rounded-lg text-[11px] text-teal-850 dark:text-teal-350">
                     <div className="font-bold uppercase text-[9px] tracking-wider text-teal-600 dark:text-teal-450">Project Address:</div>
                     <div className="font-medium mt-0.5">{REALTY_PROJECT_ADDRESSES[editForm.location]}</div>
@@ -524,6 +567,16 @@ export function AppointmentDetailModal({ booking, currentUser, onClose, onRefres
           </div>
         </div>
       )}
+      <MessageModal
+        isOpen={msgModal.isOpen}
+        type={msgModal.type}
+        title={msgModal.title}
+        message={msgModal.message}
+        onClose={() => {
+          setMsgModal({ ...msgModal, isOpen: false });
+          msgModal.onClose?.();
+        }}
+      />
     </div>
   );
 }

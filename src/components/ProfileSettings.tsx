@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { MessageModal } from "./MessageModal.tsx";
 import { Shield, User, Key, KeyRound, Smartphone, BadgeCheck, AlertCircle, CheckCircle2, Loader2, CreditCard } from "lucide-react";
 import { User as UserType, UserRole } from "../types.ts";
 
@@ -39,6 +40,13 @@ export function ProfileSettings({ currentUser, onUpdateSession, onAddLog }: Prof
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [passwordError, setPasswordError] = useState("");
+
+  const [msgModal, setMsgModal] = useState<{
+    isOpen: boolean;
+    type: "success" | "error";
+    title: string;
+    message: string;
+  }>({ isOpen: false, type: "success", title: "", message: "" });
 
   // Fetch agent details on load if agent to populate middle name, mobile and PRC
   useEffect(() => {
@@ -106,9 +114,21 @@ export function ProfileSettings({ currentUser, onUpdateSession, onAddLog }: Prof
       });
 
       setProfileSuccess("Your profile details have been successfully updated!");
+      setMsgModal({
+        isOpen: true,
+        type: "success",
+        title: "Profile Updated",
+        message: "Your profile details have been successfully updated!"
+      });
       if (onAddLog) onAddLog();
     } catch (err: any) {
       setProfileError(err.message || "An unexpected error occurred. Please try again.");
+      setMsgModal({
+        isOpen: true,
+        type: "error",
+        title: "Update Failed",
+        message: err.message || "An unexpected error occurred. Please try again."
+      });
     } finally {
       setLoadingProfile(false);
     }
@@ -152,6 +172,12 @@ export function ProfileSettings({ currentUser, onUpdateSession, onAddLog }: Prof
       }
 
       setPasswordSuccess("Your account credentials password was successfully changed!");
+      setMsgModal({
+        isOpen: true,
+        type: "success",
+        title: "Password Changed",
+        message: "Your account credentials password was successfully changed!"
+      });
       setPasswordData({
         currentPassword: "",
         newPassword: "",
@@ -160,6 +186,12 @@ export function ProfileSettings({ currentUser, onUpdateSession, onAddLog }: Prof
       if (onAddLog) onAddLog();
     } catch (err: any) {
       setPasswordError(err.message || "An unexpected error occurred. Please verify your current credentials.");
+      setMsgModal({
+        isOpen: true,
+        type: "error",
+        title: "Password Change Failed",
+        message: err.message || "An unexpected error occurred. Please verify your current credentials."
+      });
     } finally {
       setLoadingPassword(false);
     }
@@ -415,6 +447,13 @@ export function ProfileSettings({ currentUser, onUpdateSession, onAddLog }: Prof
           </form>
         </div>
       </div>
+      <MessageModal
+        isOpen={msgModal.isOpen}
+        type={msgModal.type}
+        title={msgModal.title}
+        message={msgModal.message}
+        onClose={() => setMsgModal({ ...msgModal, isOpen: false })}
+      />
     </div>
   );
 }

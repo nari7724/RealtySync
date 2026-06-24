@@ -49,6 +49,7 @@ export interface Appointment {
   status: AppointmentStatus;
   notes?: string;
   createdAt: string;
+  notified1Hr?: boolean;
 }
 
 export type BookingStatus = AppointmentStatus;

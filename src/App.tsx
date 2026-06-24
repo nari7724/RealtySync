@@ -38,7 +38,8 @@ import {
   FileCheck,
   MessageSquare,
   Calendar,
-  Building2
+  Building2,
+  Mail
 } from "lucide-react";
 
 import { User, UserRole, Agent, Notification } from "./types.ts";
@@ -252,6 +253,8 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [refreshStamp, setRefreshStamp] = useState(0);
+  const [simulatedEmailsOpen, setSimulatedEmailsOpen] = useState(false);
+  const [simulatedEmails, setSimulatedEmails] = useState<any[]>([]);
 
   // Dashboard Stats summary
   const [statsData, setStatsData] = useState<any | null>(null);
@@ -300,7 +303,7 @@ export default function App() {
         const sorted = filtered.sort((a: any, b: any) => {
           const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
           const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return tB - tA;
+          return tA - tB;
         });
         setAgentConflicts(sorted);
       }
@@ -441,6 +444,18 @@ export default function App() {
       console.error("Error fetching earliest bookings list:", err);
     }
   };
+  
+  const fetchSimulatedEmails = async () => {
+    try {
+      const res = await fetch("/api/simulated-emails");
+      if (res.ok) {
+        const data = await res.json();
+        setSimulatedEmails(data);
+      }
+    } catch (err) {
+      console.error("Error loading simulated emails:", err);
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) return;
@@ -451,23 +466,8 @@ export default function App() {
     fetchStats();
     fetchRecentActivities();
     fetchEarliestBookings();
-    if (currentUser.role === UserRole.AGENT) {
-      fetchAgentConflicts();
-    }
-
-    // Enable high-frequency background polling (every 3 seconds) for truly real-time
-    // asynchronous updates without requiring a full manual browser reload.
-    const pollInterval = setInterval(() => {
-      fetchStats();
-      fetchNotifications();
-      fetchRecentActivities();
-      fetchEarliestBookings();
-      if (currentUser.role === UserRole.AGENT) {
-        fetchAgentConflicts();
-      }
-    }, 3000);
-
-    return () => clearInterval(pollInterval);
+    fetchSimulatedEmails();
+    fetchAgentConflicts();
   }, [currentUser, refreshStamp]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -509,6 +509,10 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem("realtysync_user");
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthError(null);
+    setAuthLoading(false);
   };
 
   const handleToggleDemoRole = () => {
@@ -788,18 +792,19 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex selection:bg-teal-500 selection:text-white" id="main-admin-layout">
+    <div className="h-screen w-screen overflow-hidden bg-[#F8FAFC] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex selection:bg-teal-500 selection:text-white" id="main-admin-layout">
       {/* Sidebar navigation */}
       <Sidebar 
         currentTab={currentTab} 
         onTabChange={setCurrentTab} 
         currentUser={currentUser}
-        unreadCount={unreadNotifCount}
+        unreadCount={agentConflicts.length}
         onLogout={handleLogout}
         onToggleDemoRole={handleToggleDemoRole}
         onOpenNotifications={() => setNotificationsOpen(true)}
         isDarkMode={isDarkMode}
         onToggleTheme={() => {}}
+        onOpenSimulatedEmails={() => setSimulatedEmailsOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -1548,6 +1553,83 @@ export default function App() {
 
       </main>
 
+      {/* --- SIMULATED MAILBOX DRAWER FOR TESTING PASSWORD LOGINS & NOTIFICATIONS --- */}
+      {simulatedEmailsOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-end animate-fade-in" id="simulated-mailbox-overlay">
+          <div className="bg-slate-50 max-w-lg w-full h-full shadow-2xl flex flex-col justify-between overflow-hidden shrink-0">
+            {/* Drawer Header */}
+            <div className="bg-slate-900 text-white p-5 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2">
+                <Mail className="w-5 h-5 text-teal-400 animate-pulse" />
+                <div>
+                  <h3 className="font-extrabold text-sm uppercase tracking-wider">Simulated System Mailroom</h3>
+                  <p className="text-[10px] text-teal-300 font-medium">In-app sandbox checking dispatched agent login credentials</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSimulatedEmailsOpen(false)}
+                className="text-slate-400 hover:text-white p-1 bg-slate-800 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {simulatedEmails.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 bg-white border border-slate-200/60 rounded-xl p-6 shadow-sm">
+                  <Mail className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                  <p className="text-xs font-semibold text-slate-600">No emails dispatched yet.</p>
+                  <p className="text-[10px] text-slate-400 mt-1">When an agent registers or changes password, their credentials will be logged here for demonstration testing.</p>
+                </div>
+              ) : (
+                simulatedEmails.map((mail) => (
+                  <div 
+                    key={mail.id} 
+                    className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex justify-between items-start mb-2 pb-2 border-b border-slate-150">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">Simulated Dispatch</span>
+                        <h4 className="font-semibold text-slate-800 mt-1 text-xs">To: {mail.to}</h4>
+                      </div>
+                      <span className="text-[9px] text-slate-400 font-mono">{new Date(mail.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-900 mb-1">{mail.subject}</p>
+                    <pre className="text-[10px] leading-relaxed font-mono whitespace-pre-wrap text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-150">
+                      {mail.body}
+                    </pre>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Clear button */}
+            <div className="bg-white border-t border-slate-200 p-4 shrink-0 flex gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    await fetch("/api/simulated-emails", { method: "DELETE" });
+                    setSimulatedEmails([]);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 border border-slate-205 font-semibold rounded-lg text-xs cursor-pointer transition-colors"
+              >
+                Clear Mail Dispatch Ledger
+              </button>
+              <button
+                onClick={() => setSimulatedEmailsOpen(false)}
+                className="w-full py-2 bg-slate-900 hover:bg-slate-850 text-white font-semibold rounded-lg text-xs cursor-pointer transition-colors"
+              >
+                Dismiss Sandbox Mailroom
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- NOTIFICATIONS DRAWER POPUP OVERLAY WINDOW FOR BROKER ADMIN --- */}
       {notificationsOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-end animate-fade-in" id="notifications-overlay-window">
@@ -1556,7 +1638,7 @@ export default function App() {
             <div className="bg-slate-50 border-b border-slate-100 p-5 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
                 <Bell className="w-5 h-5 text-teal-700" />
-                <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">Duplicate Review Logs</h3>
+                <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">Recent Alerts Logs</h3>
               </div>
               <button 
                 onClick={() => setNotificationsOpen(false)}

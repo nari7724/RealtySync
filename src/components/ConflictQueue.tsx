@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { MessageModal } from "./MessageModal.tsx";
 import { 
   Layers, 
   Search, 
@@ -44,6 +45,13 @@ export function ConflictQueue({
     message: string;
     onConfirm: () => void;
   } | null>(null);
+
+  const [msgModal, setMsgModal] = useState<{
+    isOpen: boolean;
+    type: "success" | "error";
+    title: string;
+    message: string;
+  }>({ isOpen: false, type: "success", title: "", message: "" });
 
   // Load Conflicts
   const fetchConflicts = async () => {
@@ -117,9 +125,29 @@ export function ConflictQueue({
             setSelectedConflict(null);
             fetchConflicts();
             onResolve();
+            setMsgModal({
+              isOpen: true,
+              type: "success",
+              title: "Conflict Resolved",
+              message: `The conflict has been successfully resolved as '${action}'!`
+            });
+          } else {
+            const errObj = await res.json();
+            setMsgModal({
+              isOpen: true,
+              type: "error",
+              title: "Resolution Failed",
+              message: errObj.error || "Failed to resolve conflict."
+            });
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Error resolving dual entry:", err);
+          setMsgModal({
+            isOpen: true,
+            type: "error",
+            title: "Resolution Failed",
+            message: err.message || "An unexpected error occurred."
+          });
         } finally {
           setResolving(false);
         }
@@ -504,6 +532,13 @@ export function ConflictQueue({
           </div>
         </div>
       )}
+      <MessageModal
+        isOpen={msgModal.isOpen}
+        type={msgModal.type}
+        title={msgModal.title}
+        message={msgModal.message}
+        onClose={() => setMsgModal({ ...msgModal, isOpen: false })}
+      />
     </div>
   );
 }

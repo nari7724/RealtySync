@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { Client, Agent, Booking, BookingStatus, UserRole } from "../types.ts";
 import { ClientForm } from "./ClientForm.tsx";
+import { MessageModal } from "./MessageModal.tsx";
 
 interface ClientMasterListProps {
   currentUser: { id: string; firstName: string; lastName: string; role: UserRole };
@@ -57,7 +58,7 @@ export function ClientMasterList({
 
   const [search, setSearch] = useState("");
   const [selectedAgent, setSelectedAgent] = useState("");
-  const [selectedDupStatus, setSelectedDupStatus] = useState(currentUser.role === UserRole.ADMIN ? "" : "None");
+  const [selectedDupStatus, setSelectedDupStatus] = useState("");
   const [loading, setLoading] = useState(true);
 
   // Modals status
@@ -88,6 +89,12 @@ export function ClientMasterList({
   });
   const [bookingSaving, setBookingSaving] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [msgModal, setMsgModal] = useState<{
+    isOpen: boolean;
+    type: "success" | "error";
+    title: string;
+    message: string;
+  }>({ isOpen: false, type: "success", title: "", message: "" });
   const [addressInputFocused, setAddressInputFocused] = useState(false);
 
   // Edit Client Form State
@@ -242,15 +249,35 @@ export function ClientMasterList({
 
           if (!res.ok) {
             const errData = await res.json();
-            setBookingError(errData.error || "The client already has an appointment scheduled at this exact date and time. Please select another slot.");
+            const errMsg = errData.error || "The client already has an appointment scheduled at this exact date and time. Please select another slot.";
+            setBookingError(errMsg);
+            setMsgModal({
+              isOpen: true,
+              type: "error",
+              title: "Appointment Failed",
+              message: errMsg
+            });
             return;
           }
 
           setBookingClient(null);
           fetchClients();
-        } catch (err) {
+          setMsgModal({
+            isOpen: true,
+            type: "success",
+            title: "Appointment Scheduled",
+            message: "Successfully scheduled your appointment!"
+          });
+        } catch (err: any) {
           console.error("Appointment creation error:", err);
-          setBookingError("Failed to schedule appointment. Please check network connectivity.");
+          const errMsg = "Failed to schedule appointment. Please check network connectivity.";
+          setBookingError(errMsg);
+          setMsgModal({
+            isOpen: true,
+            type: "error",
+            title: "Appointment Failed",
+            message: errMsg
+          });
         } finally {
           setBookingSaving(false);
         }
@@ -274,9 +301,29 @@ export function ClientMasterList({
           if (res.ok) {
             fetchClients();
             fetchDualEntries();
+            setMsgModal({
+              isOpen: true,
+              type: "success",
+              title: "Claim Surrendered",
+              message: `Successfully surrendered your claim on '${client.firstName} ${client.lastName}'.`
+            });
+          } else {
+            const errObj = await res.json();
+            setMsgModal({
+              isOpen: true,
+              type: "error",
+              title: "Surrender Failed",
+              message: errObj.error || "Failed to surrender claim."
+            });
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Error surrendering claim:", err);
+          setMsgModal({
+            isOpen: true,
+            type: "error",
+            title: "Surrender Failed",
+            message: err.message || "An unexpected error occurred while surrendering."
+          });
         } finally {
           setLoading(false);
         }
@@ -325,9 +372,29 @@ export function ClientMasterList({
           if (res.ok) {
             setEditingClient(null);
             fetchClients();
+            setMsgModal({
+              isOpen: true,
+              type: "success",
+              title: "Client Updated",
+              message: "Successfully updated client details."
+            });
+          } else {
+            const errObj = await res.json();
+            setMsgModal({
+              isOpen: true,
+              type: "error",
+              title: "Update Failed",
+              message: errObj.error || "Failed to update client."
+            });
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Client update error:", err);
+          setMsgModal({
+            isOpen: true,
+            type: "error",
+            title: "Update Failed",
+            message: err.message || "An unexpected error occurred while updating client."
+          });
         } finally {
           setClientSaving(false);
         }
@@ -1150,6 +1217,12 @@ export function ClientMasterList({
                   setShowAddClientModal(false);
                   fetchClients();
                   fetchDualEntries();
+                  setMsgModal({
+                    isOpen: true,
+                    type: "success",
+                    title: "Client Registered",
+                    message: "A new client profile has been successfully registered and recorded!"
+                  });
                 }}
                 onCancel={() => setShowAddClientModal(false)}
                 agentsList={agentsList}
@@ -1187,6 +1260,13 @@ export function ClientMasterList({
           </div>
         </div>
       )}
+      <MessageModal
+        isOpen={msgModal.isOpen}
+        type={msgModal.type}
+        title={msgModal.title}
+        message={msgModal.message}
+        onClose={() => setMsgModal({ ...msgModal, isOpen: false })}
+      />
     </div>
   );
 }
