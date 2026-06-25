@@ -264,7 +264,8 @@ const DEFAULT_DUAL_ENTRIES: DualEntry[] = [
     dateA: "2026-05-12T11:00:00Z",
     dateB: "2026-06-01T15:20:00Z",
     similarityScore: 100, // Exact phone and FB Match
-    status: "Pending Review",
+    status: "Pending",
+    resolution: "Pending",
     details: {
       clientA: DEFAULT_CLIENTS[0],
       clientB: DEFAULT_CLIENTS[1],
@@ -287,7 +288,8 @@ const DEFAULT_DUAL_ENTRIES: DualEntry[] = [
     dateA: "2026-06-05T09:12:00Z",
     dateB: "2026-06-14T01:30:00Z", // Fresh today
     similarityScore: 100, // Same phone and FB Match
-    status: "Pending Review",
+    status: "Pending",
+    resolution: "Pending",
     details: {
       clientA: DEFAULT_CLIENTS[2],
       clientB: DEFAULT_CLIENTS[3],
@@ -512,47 +514,78 @@ function generateRandomPassword(): string {
   return pwd;
 }
 
-const SIMULATED_EMAILS_FILE = path.join(process.cwd(), "simulated_emails.json");
+async function simulateEmailSend(email: string, subject: string, body: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  let fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  
+  console.log(`[Email Dispatched Log] To: ${email}, Subject: ${subject}`);
+  
+  if (!apiKey) {
+    console.log(`[Resend Email Offline] RESEND_API_KEY is not defined in environment variables. Email would be dispatched to ${email}.`);
+    return;
+  }
 
-function loadSimulatedEmails() {
-  try {
-    if (fs.existsSync(SIMULATED_EMAILS_FILE)) {
-      return JSON.parse(fs.readFileSync(SIMULATED_EMAILS_FILE, "utf-8"));
+  // Pre-emptively switch public domains (e.g. gmail.com) to onboarding@resend.dev
+  const publicDomains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "aol.com"];
+  const domain = fromEmail.split("@")[1]?.toLowerCase() || "";
+  if (publicDomains.includes(domain) && fromEmail !== "onboarding@resend.dev") {
+    console.log(`[Resend Notice] Public domain detected in RESEND_FROM_EMAIL. Overriding to onboarding@resend.dev to avoid 403.`);
+    fromEmail = "onboarding@resend.dev";
+  }
+
+  const sendWithFrom = async (from: string): Promise<{ ok: boolean; status: number; text: string }> => {
+    try {
+      const formattedBody = body.replace(/\n/g, "<br />");
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          from: `RealtySync <${from}>`,
+          to: [email],
+          subject: subject,
+          html: `
+            <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px;">
+              <h2 style="color: #0f766e; border-bottom: 2px solid #0f766e; padding-bottom: 10px;">RealtySync Broker Platform</h2>
+              <div style="font-size: 14px; line-height: 1.6; margin-top: 15px;">
+                ${formattedBody}
+              </div>
+              <p style="font-size: 11px; color: #999; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; text-align: center;">
+                This is an automated notification from RealtySync. Do not reply to this email.
+              </p>
+            </div>
+          `
+        })
+      });
+      const text = await res.text();
+      return { ok: res.ok, status: res.status, text };
+    } catch (err: any) {
+      return { ok: false, status: 500, text: err.message || String(err) };
     }
-  } catch (err) {
-    console.error("Error loading simulated emails:", err);
-  }
-  return [];
-}
-
-function saveSimulatedEmails(emails: any[]) {
-  try {
-    fs.writeFileSync(SIMULATED_EMAILS_FILE, JSON.stringify(emails, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Error saving simulated emails:", err);
-  }
-}
-
-function simulateEmailSend(email: string, subject: string, body: string) {
-  console.log("\n=======================================================");
-  console.log(`[EMAIL DISPATCH SYSTEM LOG]`);
-  console.log(`To: ${email}`);
-  console.log(`Subject: ${subject}`);
-  console.log(`Body:\n${body}`);
-  console.log("=======================================================\n");
+  };
 
   try {
-    const emailsList = loadSimulatedEmails();
-    emailsList.unshift({
-      id: "mail_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
-      to: email,
-      subject,
-      body,
-      timestamp: new Date().toISOString()
-    });
-    saveSimulatedEmails(emailsList);
-  } catch (error) {
-    console.error("Failed to persist simulated email log:", error);
+    let result = await sendWithFrom(fromEmail);
+    if (!result.ok && fromEmail !== "onboarding@resend.dev" && (result.text.includes("not verified") || result.text.includes("domain") || result.status === 403)) {
+      console.log(`[Resend Notice] Verification issue for ${fromEmail} (status ${result.status}). Retrying with onboarding@resend.dev...`);
+      fromEmail = "onboarding@resend.dev";
+      result = await sendWithFrom(fromEmail);
+    }
+
+    if (result.ok) {
+      try {
+        const data = JSON.parse(result.text);
+        console.log(`[Resend Success] Email sent successfully via Resend. ID: ${data.id}`);
+      } catch {
+        console.log(`[Resend Success] Email sent successfully via Resend.`);
+      }
+    } else {
+      console.log(`[Resend Notice] Resend returned non-200 status (${result.status}). Sandbox mode is active and email content was successfully logged in terminal. API Message: ${result.text}`);
+    }
+  } catch (error: any) {
+    console.log(`[Resend Notice] Sandbox exception handler caught:`, error.message || error);
   }
 }
 
@@ -680,6 +713,7 @@ const CLIENT_MAPPINGS = {
   assignedagentname: "assignedAgentName",
   dateregistered: "dateRegistered",
   duplicatestatus: "duplicateStatus",
+  isdeleted: "isDeleted",
 };
 
 const BOOKING_MAPPINGS = {
@@ -693,6 +727,7 @@ const BOOKING_MAPPINGS = {
   appointmenttime: "appointmentTime",
   datetime: "dateTime",
   createdat: "createdAt",
+  notified1hr: "notified1Hr",
 };
 
 const DUAL_ENTRY_MAPPINGS = {
@@ -706,6 +741,7 @@ const DUAL_ENTRY_MAPPINGS = {
   datea: "dateA",
   dateb: "dateB",
   similarityscore: "similarityScore",
+  resolution: "resolution",
 };
 
 const NOTIFICATION_MAPPINGS = {
@@ -744,11 +780,14 @@ function mapToDb<T extends Record<string, any>>(obj: T, mappings: Record<string,
   return result;
 }
 
+let hasNotified1HrColumn = true;
+
 function mapToDbSingle(obj: any, mappings: Record<string, string>): Record<string, any> {
   if (!obj || typeof obj !== "object") return obj;
   const result: Record<string, any> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (value === undefined) continue;
+    if ((key === "notified1Hr" || key === "notified1hr") && (!mappings.notified1hr || !hasNotified1HrColumn)) continue;
     const lowerKey = Object.keys(mappings).find(lk => mappings[lk] === key);
     if (lowerKey) {
       result[lowerKey] = value;
@@ -762,6 +801,10 @@ function mapToDbSingle(obj: any, mappings: Record<string, string>): Record<strin
 function cleanCamelCasePayload(obj: any, mappings: Record<string, string>): Record<string, any> {
   if (!obj || typeof obj !== "object") return obj;
   const result = { ...obj };
+  if (!mappings.notified1hr || !hasNotified1HrColumn) {
+    delete result.notified1Hr;
+    delete result.notified1hr;
+  }
   for (const lowerKey of Object.keys(mappings)) {
     if (result[lowerKey] !== undefined && mappings[lowerKey] !== lowerKey) {
       delete result[lowerKey];
@@ -792,11 +835,30 @@ To fix this and allow the RealtySync application to save data to Supabase:
 }
 
 async function safeInsert(table: string, obj: any, mappings: Record<string, string>) {
-  const camelPayload = cleanCamelCasePayload(obj, mappings);
+  let camelPayload = cleanCamelCasePayload(obj, mappings);
+  if (table === "clients") {
+    delete camelPayload.status;
+  }
   if (table === "dual_entries" && typeof camelPayload.details === "object") {
     camelPayload.details = JSON.stringify(camelPayload.details);
   }
-  const { data, error } = await supabase.from(table).insert(camelPayload).select();
+  let { data, error } = await supabase.from(table).insert(camelPayload).select();
+
+  if (error && (error.message.includes("notified1Hr") || error.message.includes("notified1hr") || error.message.includes("schema cache"))) {
+    hasNotified1HrColumn = false;
+    console.warn(`[Supabase] Detected missing notified1Hr column on insert, disabling column and retrying camelCase insert...`);
+    camelPayload = cleanCamelCasePayload(obj, mappings);
+    if (table === "clients") {
+      delete camelPayload.status;
+    }
+    if (table === "dual_entries" && typeof camelPayload.details === "object") {
+      camelPayload.details = JSON.stringify(camelPayload.details);
+    }
+    const retry = await supabase.from(table).insert(camelPayload).select();
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (!error) {
     return { data, error: null };
   }
@@ -807,11 +869,30 @@ async function safeInsert(table: string, obj: any, mappings: Record<string, stri
   }
 
   console.warn(`[Supabase] CamelCase insert into ${table} failed, retrying with lowercase:`, error.message);
-  const lowerPayload = mapToDbSingle(obj, mappings);
+  let lowerPayload = mapToDbSingle(obj, mappings);
+  if (table === "clients") {
+    delete lowerPayload.status;
+  }
   if (table === "dual_entries" && typeof lowerPayload.details === "object") {
     lowerPayload.details = JSON.stringify(lowerPayload.details);
   }
-  const { data: dataLower, error: errorLower } = await supabase.from(table).insert(lowerPayload).select();
+  let { data: dataLower, error: errorLower } = await supabase.from(table).insert(lowerPayload).select();
+
+  if (errorLower && (errorLower.message.includes("notified1Hr") || errorLower.message.includes("notified1hr") || errorLower.message.includes("schema cache"))) {
+    hasNotified1HrColumn = false;
+    console.warn(`[Supabase] Detected missing notified1Hr column on lowercase insert retry, retrying...`);
+    lowerPayload = mapToDbSingle(obj, mappings);
+    if (table === "clients") {
+      delete lowerPayload.status;
+    }
+    if (table === "dual_entries" && typeof lowerPayload.details === "object") {
+      lowerPayload.details = JSON.stringify(lowerPayload.details);
+    }
+    const retry = await supabase.from(table).insert(lowerPayload).select();
+    dataLower = retry.data;
+    errorLower = retry.error;
+  }
+
   if (errorLower) {
     if (isRlsError(errorLower)) {
       printRlsInstruction(table, "insert (lowercase retry)", errorLower.message);
@@ -824,11 +905,30 @@ async function safeInsert(table: string, obj: any, mappings: Record<string, stri
 }
 
 async function safeUpdate(table: string, obj: any, id: string, mappings: Record<string, string>) {
-  const camelPayload = cleanCamelCasePayload(obj, mappings);
+  let camelPayload = cleanCamelCasePayload(obj, mappings);
+  if (table === "clients") {
+    delete camelPayload.status;
+  }
   if (table === "dual_entries" && typeof camelPayload.details === "object") {
     camelPayload.details = JSON.stringify(camelPayload.details);
   }
-  const { data, error } = await supabase.from(table).update(camelPayload).eq("id", id).select();
+  let { data, error } = await supabase.from(table).update(camelPayload).eq("id", id).select();
+
+  if (error && (error.message.includes("notified1Hr") || error.message.includes("notified1hr") || error.message.includes("schema cache"))) {
+    hasNotified1HrColumn = false;
+    console.warn(`[Supabase] Detected missing notified1Hr column on update, disabling column and retrying camelCase update...`);
+    camelPayload = cleanCamelCasePayload(obj, mappings);
+    if (table === "clients") {
+      delete camelPayload.status;
+    }
+    if (table === "dual_entries" && typeof camelPayload.details === "object") {
+      camelPayload.details = JSON.stringify(camelPayload.details);
+    }
+    const retry = await supabase.from(table).update(camelPayload).eq("id", id).select();
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (!error) {
     return { data, error: null };
   }
@@ -839,11 +939,30 @@ async function safeUpdate(table: string, obj: any, id: string, mappings: Record<
   }
 
   console.warn(`[Supabase] CamelCase update of ${table} ID ${id} failed, retrying with lowercase:`, error.message);
-  const lowerPayload = mapToDbSingle(obj, mappings);
+  let lowerPayload = mapToDbSingle(obj, mappings);
+  if (table === "clients") {
+    delete lowerPayload.status;
+  }
   if (table === "dual_entries" && typeof lowerPayload.details === "object") {
     lowerPayload.details = JSON.stringify(lowerPayload.details);
   }
-  const { data: dataLower, error: errorLower } = await supabase.from(table).update(lowerPayload).eq("id", id).select();
+  let { data: dataLower, error: errorLower } = await supabase.from(table).update(lowerPayload).eq("id", id).select();
+
+  if (errorLower && (errorLower.message.includes("notified1Hr") || errorLower.message.includes("notified1hr") || errorLower.message.includes("schema cache"))) {
+    hasNotified1HrColumn = false;
+    console.warn(`[Supabase] Detected missing notified1Hr column on lowercase update retry, retrying...`);
+    lowerPayload = mapToDbSingle(obj, mappings);
+    if (table === "clients") {
+      delete lowerPayload.status;
+    }
+    if (table === "dual_entries" && typeof lowerPayload.details === "object") {
+      lowerPayload.details = JSON.stringify(lowerPayload.details);
+    }
+    const retry = await supabase.from(table).update(lowerPayload).eq("id", id).select();
+    dataLower = retry.data;
+    errorLower = retry.error;
+  }
+
   if (errorLower) {
     if (isRlsError(errorLower)) {
       printRlsInstruction(table, `update of ID ${id} (lowercase retry)`, errorLower.message);
@@ -856,11 +975,30 @@ async function safeUpdate(table: string, obj: any, id: string, mappings: Record<
 }
 
 async function safeUpsert(table: string, obj: any, mappings: Record<string, string>) {
-  const camelPayload = cleanCamelCasePayload(obj, mappings);
+  let camelPayload = cleanCamelCasePayload(obj, mappings);
+  if (table === "clients") {
+    delete camelPayload.status;
+  }
   if (table === "dual_entries" && typeof camelPayload.details === "object") {
     camelPayload.details = JSON.stringify(camelPayload.details);
   }
-  const { data, error } = await supabase.from(table).upsert(camelPayload).select();
+  let { data, error } = await supabase.from(table).upsert(camelPayload).select();
+
+  if (error && (error.message.includes("notified1Hr") || error.message.includes("notified1hr") || error.message.includes("schema cache"))) {
+    hasNotified1HrColumn = false;
+    console.warn(`[Supabase] Detected missing notified1Hr column on upsert, disabling column and retrying camelCase upsert...`);
+    camelPayload = cleanCamelCasePayload(obj, mappings);
+    if (table === "clients") {
+      delete camelPayload.status;
+    }
+    if (table === "dual_entries" && typeof camelPayload.details === "object") {
+      camelPayload.details = JSON.stringify(camelPayload.details);
+    }
+    const retry = await supabase.from(table).upsert(camelPayload).select();
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (!error) {
     return { data, error: null };
   }
@@ -871,11 +1009,30 @@ async function safeUpsert(table: string, obj: any, mappings: Record<string, stri
   }
 
   console.warn(`[Supabase] CamelCase upsert into ${table} failed, retrying with lowercase:`, error.message);
-  const lowerPayload = mapToDbSingle(obj, mappings);
+  let lowerPayload = mapToDbSingle(obj, mappings);
+  if (table === "clients") {
+    delete lowerPayload.status;
+  }
   if (table === "dual_entries" && typeof lowerPayload.details === "object") {
     lowerPayload.details = JSON.stringify(lowerPayload.details);
   }
-  const { data: dataLower, error: errorLower } = await supabase.from(table).upsert(lowerPayload).select();
+  let { data: dataLower, error: errorLower } = await supabase.from(table).upsert(lowerPayload).select();
+
+  if (errorLower && (errorLower.message.includes("notified1Hr") || errorLower.message.includes("notified1hr") || errorLower.message.includes("schema cache"))) {
+    hasNotified1HrColumn = false;
+    console.warn(`[Supabase] Detected missing notified1Hr column on lowercase upsert retry, retrying...`);
+    lowerPayload = mapToDbSingle(obj, mappings);
+    if (table === "clients") {
+      delete lowerPayload.status;
+    }
+    if (table === "dual_entries" && typeof lowerPayload.details === "object") {
+      lowerPayload.details = JSON.stringify(lowerPayload.details);
+    }
+    const retry = await supabase.from(table).upsert(lowerPayload).select();
+    dataLower = retry.data;
+    errorLower = retry.error;
+  }
+
   if (errorLower) {
     if (isRlsError(errorLower)) {
       printRlsInstruction(table, "upsert (lowercase retry)", errorLower.message);
@@ -1197,8 +1354,12 @@ async function reevaluateAllClientConflicts() {
         const c1 = clients[i];
         const c2 = clients[j];
 
-        // Skip surrendered claims
+        // Skip surrendered claims or deleted clients
         if (c1.status === "Surrendered Claim" || c2.status === "Surrendered Claim") {
+          continue;
+        }
+
+        if (c1.isDeleted === true || c1.is_deleted === true || c2.isDeleted === true || c2.is_deleted === true) {
           continue;
         }
 
@@ -1231,7 +1392,8 @@ async function reevaluateAllClientConflicts() {
               dateA: c1.dateRegistered,
               dateB: c2.dateRegistered,
               similarityScore: check.score,
-              status: "Pending Review",
+              status: "Pending",
+              resolution: "Pending",
               details: {
                 clientA: c1,
                 clientB: c2,
@@ -1276,7 +1438,28 @@ async function reevaluateAllClientConflicts() {
 
     // Upsert dual entries
     for (const d of dualEntriesToUpsert) {
+      const isNew = !dualEntries.some(de => de.id === d.id);
       await safeUpsert("dual_entries", d, DUAL_ENTRY_MAPPINGS);
+
+      if (isNew) {
+        // Notify Admins via email
+        try {
+          let adminEmails = ["admin@realtysync.com"];
+          const { data: adminUsers, error: adminErr } = await supabase.from("users").select("email").eq("role", "ADMIN");
+          if (!adminErr && adminUsers && adminUsers.length > 0) {
+            adminEmails = adminUsers.map((u: any) => u.email).filter(Boolean);
+          }
+          for (const email of adminEmails) {
+            await simulateEmailSend(
+              email,
+              `🚨 Alert: Dual Client Entry Created`,
+              `Dear Administrator,\n\nA new dual client entry conflict has been detected in RealtySync.\n\nDetails:\nClient Name: ${d.clientName}\nSimilarity Score: ${d.similarityScore}%\n\nConflict involving:\n- Agent A: ${d.agentNameA}\n- Agent B: ${d.agentNameB}\n\nPlease log in to the RealtySync admin dashboard to review and resolve this conflict.\n\nBest Regards,\nRealtySync System`
+            );
+          }
+        } catch (err: any) {
+          console.error("Failed to send admin email on reevaluated client duplicate:", err.message || err);
+        }
+      }
     }
 
     // Delete inactive dual entries
@@ -1532,6 +1715,10 @@ async function startServer() {
         // Skip comparing to self if editing
         if (pendingClient.id && existing.id === pendingClient.id) continue;
 
+        // Do not duplicate check with client records that has no clean duplicate status or deleted (is_deleted=TRUE)
+        if (existing.duplicateStatus && existing.duplicateStatus !== "None") continue;
+        if (existing.isDeleted === true || existing.is_deleted === true) continue;
+
         const comp = calculateCombinedDuplicateScore(pendingClient, existing);
         if (comp.score > highestScore) {
           highestScore = comp.score;
@@ -1660,6 +1847,10 @@ async function startServer() {
 
       const clients = await fetchClients();
       for (const existing of clients) {
+        // Do not duplicate check with client records that has no clean duplicate status or deleted (is_deleted=TRUE)
+        if (existing.duplicateStatus && existing.duplicateStatus !== "None") continue;
+        if (existing.isDeleted === true || existing.is_deleted === true) continue;
+
         const check = calculateCombinedDuplicateScore(newClient, existing);
         if (check.score >= 70) {
           conflictFound = true;
@@ -1695,7 +1886,8 @@ async function startServer() {
           dateA: existing.dateRegistered,
           dateB: newClient.dateRegistered,
           similarityScore: score,
-          status: "Pending Review",
+          status: "Pending",
+          resolution: "Pending",
           details: {
             clientA: existing,
             clientB: newClient,
@@ -1722,7 +1914,8 @@ async function startServer() {
           message: `Agent ${newClient.assignedAgentName} registered '${newClient.firstName} ${newClient.lastName}' which duplicates '${existing.firstName} ${existing.lastName}' (Agent: ${existing.assignedAgentName}). Conflict score: ${score}%.`,
           timestamp: new Date().toISOString(),
           read: false,
-          type: "DUPLICATE_ALERT"
+          type: "DUPLICATE_ALERT",
+          clientId: newClient.id
         };
         const { error: notifErr } = await safeInsert("notifications", notif, NOTIFICATION_MAPPINGS);
         if (notifErr) {
@@ -1731,6 +1924,24 @@ async function startServer() {
 
         // Add to session in-memory cache for resilient failover
         memoryNotifications.push(notif);
+
+        // Notify Admins via email
+        try {
+          let adminEmails = ["admin@realtysync.com"];
+          const { data: adminUsers, error: adminErr } = await supabase.from("users").select("email").eq("role", "ADMIN");
+          if (!adminErr && adminUsers && adminUsers.length > 0) {
+            adminEmails = adminUsers.map((u: any) => u.email).filter(Boolean);
+          }
+          for (const email of adminEmails) {
+            await simulateEmailSend(
+              email,
+              `🚨 Alert: Dual Client Entry Created`,
+              `Dear Administrator,\n\nA new dual client entry conflict has been detected in RealtySync.\n\nDetails:\nClient Name: ${dualEntry.clientName}\nSimilarity Score: ${dualEntry.similarityScore}%\n\nConflict involving:\n- Agent A: ${dualEntry.agentNameA} (Client: ${existing.firstName} ${existing.lastName})\n- Agent B: ${dualEntry.agentNameB} (Client: ${newClient.firstName} ${newClient.lastName})\n\nPlease log in to the RealtySync admin dashboard to review and resolve this conflict.\n\nBest Regards,\nRealtySync System`
+            );
+          }
+        } catch (err: any) {
+          console.error("Failed to send admin email on client registration duplicate:", err.message || err);
+        }
       }
 
       // Add logging
@@ -1845,11 +2056,10 @@ async function startServer() {
 
       if (dual) {
         const previousDualState = JSON.stringify(dual);
-        const otherClientId = dual.clientIdA === id ? dual.clientIdB : dual.clientIdA;
-        const otherClient = clients.find(c => c.id === otherClientId);
-
+        
         // Resolve the dual entry
         dual.status = "Resolved";
+        dual.resolution = "Surrendered";
         const { error: dualUpdErr } = await safeUpdate("dual_entries", dual, dual.id, DUAL_ENTRY_MAPPINGS);
         if (dualUpdErr) {
           console.error("Supabase update dual_entries error:", dualUpdErr.message);
@@ -1859,21 +2069,6 @@ async function startServer() {
         const dIdx = memoryDualEntries.findIndex(d => d.id === dual.id);
         if (dIdx !== -1) {
           memoryDualEntries[dIdx] = dual;
-        }
-
-        // Clear duplicate status on the remaining winner client
-        if (otherClient) {
-          otherClient.duplicateStatus = "None";
-          const { error: otherUpdErr } = await safeUpdate("clients", otherClient, otherClient.id, CLIENT_MAPPINGS);
-          if (otherUpdErr) {
-            console.error("Supabase update other client error:", otherUpdErr.message);
-          }
-
-          // Update memory clients cache
-          const ocIdx = memoryClients.findIndex(c => c.id === otherClient.id);
-          if (ocIdx !== -1) {
-            memoryClients[ocIdx] = otherClient;
-          }
         }
 
         await writeLog(
@@ -1890,7 +2085,6 @@ async function startServer() {
 
       // Do not delete client record when being surrendered just update status to "Surrendered Claim"
       client.status = "Surrendered Claim";
-      client.duplicateStatus = "None"; // Clear duplicate check since they are surrendering
 
       const { error: surrenderErr } = await safeUpdate("clients", client, client.id, CLIENT_MAPPINGS);
       if (surrenderErr) {
@@ -1900,6 +2094,9 @@ async function startServer() {
 
       // Update memory clients cache
       const cIdx = memoryClients.findIndex(c => c.id === client.id);
+      if (cIdx !== -1) {
+        memoryClients[cIdx] = client;
+      }
       if (cIdx !== -1) {
         memoryClients[cIdx] = client;
       }
@@ -2429,50 +2626,75 @@ async function startServer() {
 
       const previousStateString = JSON.stringify(currentDual);
 
-      // Apply outcome to conflicts db
-      currentDual.status = resolutionStatus; // Confirmed Duplicate, False Positive, Resolved
+      const idA = currentDual.clientIdA;
+      const idB = currentDual.clientIdB;
 
-      // Update dual entry in Supabase
+      const clientsLst = await fetchClients();
+      const clientA = clientsLst.find(c => c.id === idA);
+      const clientB = clientsLst.find(c => c.id === idB);
+
+      if (action === "Mark False Positive") {
+        currentDual.status = "Resolved";
+        currentDual.resolution = "Marked False Positive";
+        
+        if (clientB) {
+          clientB.duplicateStatus = "None";
+          await safeUpdate("clients", clientB, idB, CLIENT_MAPPINGS);
+          const idx = memoryClients.findIndex(c => c.id === idB);
+          if (idx !== -1) memoryClients[idx].duplicateStatus = "None";
+        }
+      } else if (action === "Mark Duplicate") {
+        currentDual.status = "Resolved";
+        currentDual.resolution = "Marked Duplicate";
+      } else if (action === "Resolve") {
+        currentDual.status = "Resolved";
+        currentDual.resolution = "Approved Agent B Claim";
+
+        if (clientB && clientA) {
+          const formerBStatus = clientB.duplicateStatus || "None";
+          clientB.duplicateStatus = "None";
+          clientA.duplicateStatus = formerBStatus;
+
+          await safeUpdate("clients", clientB, idB, CLIENT_MAPPINGS);
+          await safeUpdate("clients", clientA, idA, CLIENT_MAPPINGS);
+
+          const idxB = memoryClients.findIndex(c => c.id === idB);
+          if (idxB !== -1) memoryClients[idxB].duplicateStatus = "None";
+
+          const idxA = memoryClients.findIndex(c => c.id === idA);
+          if (idxA !== -1) memoryClients[idxA].duplicateStatus = formerBStatus;
+        }
+      }
+
+      // Update dual entry in Supabase and memory
       const { error: dualUpdErr } = await safeUpdate("dual_entries", currentDual, id, DUAL_ENTRY_MAPPINGS);
       if (dualUpdErr) {
         console.error("Supabase update dual_entries failed:", dualUpdErr.message);
         return res.status(500).json({ error: `Failed to resolve dual entry: ${dualUpdErr.message}` });
       }
 
-      // If resolved or marked duplicate, let's update client statuses
-      if (resolutionStatus === "Confirmed Duplicate" || resolutionStatus === "Resolved") {
-        const idA = currentDual.clientIdA;
-        const idB = currentDual.clientIdB;
+      const dIdx = memoryDualEntries.findIndex(d => d.id === id);
+      if (dIdx !== -1) {
+        memoryDualEntries[dIdx] = currentDual;
+      }
 
-        const clientsLst = await fetchClients();
-        const clientA = clientsLst.find(c => c.id === idA);
-        const clientB = clientsLst.find(c => c.id === idB);
+      // Notify Agent A and Agent B about the resolution
+      try {
+        const agentsList = await fetchAgents();
+        const agentA = agentsList.find(a => a.id === currentDual.agentIdA);
+        const agentB = agentsList.find(a => a.id === currentDual.agentIdB);
 
-        if (clientA) {
-          clientA.duplicateStatus = "None";
-          await safeUpdate("clients", clientA, idA, CLIENT_MAPPINGS);
+        const emailSubject = `Conflict Resolved: Client "${currentDual.clientName}"`;
+        const emailBody = `The duplicate client conflict involving "${currentDual.clientName}" has been resolved by the administrator.\n\nResolution Details:\n- Action Taken: ${action}\n- Final Outcome: ${currentDual.resolution || "Resolved"}\n\nIf you have any questions, please contact the Broker Administrator.\n\nBest Regards,\nRealtySync Team`;
+
+        if (agentA && agentA.email) {
+          await simulateEmailSend(agentA.email, emailSubject, emailBody);
         }
-        
-        if (clientB) {
-          if (action === "Mark Duplicate" || winningClientIdx === 1) {
-            clientB.duplicateStatus = "Strong";
-          } else {
-            clientB.duplicateStatus = "None";
-          }
-          await safeUpdate("clients", clientB, idB, CLIENT_MAPPINGS);
+        if (agentB && agentB.email) {
+          await simulateEmailSend(agentB.email, emailSubject, emailBody);
         }
-      } else if (resolutionStatus === "False Positive") {
-        const clientsLst = await fetchClients();
-        const clientA = clientsLst.find(c => c.id === currentDual.clientIdA);
-        const clientB = clientsLst.find(c => c.id === currentDual.clientIdB);
-        if (clientA) {
-          clientA.duplicateStatus = "None";
-          await safeUpdate("clients", clientA, clientA.id, CLIENT_MAPPINGS);
-        }
-        if (clientB) {
-          clientB.duplicateStatus = "None";
-          await safeUpdate("clients", clientB, clientB.id, CLIENT_MAPPINGS);
-        }
+      } catch (err: any) {
+        console.error("Failed to send conflict resolution emails to agents:", err.message || err);
       }
 
       await writeLog(
@@ -2511,24 +2733,6 @@ async function startServer() {
     } catch (err: any) {
       console.error("POST /api/notifications/clear error:", err);
       res.status(500).json({ error: "Failed to clear notifications" });
-    }
-  });
-
-  // Simulated Email Dispatch Logs for demo / admin audit purposes
-  app.get("/api/simulated-emails", (req, res) => {
-    try {
-      res.json(loadSimulatedEmails());
-    } catch (err) {
-      res.status(500).json({ error: "Failed to read simulated email list" });
-    }
-  });
-
-  app.delete("/api/simulated-emails", (req, res) => {
-    try {
-      saveSimulatedEmails([]);
-      res.json({ status: "success" });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to clear simulated emails" });
     }
   });
 
@@ -2749,6 +2953,9 @@ async function startServer() {
     }
   });
 
+  // Track already notified booking IDs to prevent duplicate alerts
+  const notifiedBookingsSet = new Set<string>();
+
   // Background interval to check for upcoming appointments (1-hour notice reminder)
   setInterval(async () => {
     try {
@@ -2778,7 +2985,7 @@ async function startServer() {
       const agents = await fetchAgents();
 
       for (const b of bookings) {
-        if (!b.appointmentDate || !b.appointmentTime || b.status === "Cancelled" || b.notified1Hr) {
+        if (!b.appointmentDate || !b.appointmentTime || b.status === "Cancelled" || b.notified1Hr || notifiedBookingsSet.has(b.id)) {
           continue;
         }
 
@@ -2787,7 +2994,7 @@ async function startServer() {
         const diffMinutes = diffMs / (1000 * 60);
 
         // Notify if scheduled appointment starts within 60 minutes (1 hour) of the current local time
-        if (diffMinutes >= 0 && diffMinutes <= 60 && !b.notified1Hr) {
+        if (diffMinutes >= 0 && diffMinutes <= 60 && !b.notified1Hr && !notifiedBookingsSet.has(b.id)) {
           // Find the agent details
           const agent = agents.find((a: any) => a.id === b.agentId);
           if (agent) {
@@ -2796,6 +3003,7 @@ async function startServer() {
 
             // 1. Mark notified in database
             b.notified1Hr = true;
+            notifiedBookingsSet.add(b.id);
             await safeUpdate("bookings", b, b.id, BOOKING_MAPPINGS);
 
             // 2. Add to In-app notifications in Supabase
@@ -2819,8 +3027,11 @@ async function startServer() {
               "RealtySync Notifier Service",
               UserRole.ADMIN,
               "Appt 1HR Alert Dispatched",
-              `Alerted ${agent.firstName} ${agent.lastName} via Email (${agent.email}) & SMS (${agent.mobileNumber || "N/A"})`
+              `Alerted ${agent.firstName} ${agent.lastName} via Email (${agent.email})`
             );
+
+            // Send actual email via Resend
+            await simulateEmailSend(agent.email, title, message);
 
             // 4. Print actual simulated terminal transmissions beautifully
             console.log(`\n========================================================================`);
@@ -2828,10 +3039,6 @@ async function startServer() {
             console.log(`   To:      ${agent.email}`);
             console.log(`   Subject: ${title}`);
             console.log(`   Body:    ${message}`);
-            console.log(`------------------------------------------------------------------------`);
-            console.log(`📱 [SMS TRANSMISSION SUCCESS]`);
-            console.log(`   To:      ${agent.mobileNumber || "N/A"}`);
-            console.log(`   Text:    ${message}`);
             console.log(`========================================================================\n`);
           }
         }

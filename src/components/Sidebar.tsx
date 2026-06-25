@@ -32,7 +32,8 @@ interface SidebarProps {
   onOpenNotifications: () => void;
   isDarkMode: boolean;
   onToggleTheme: () => void;
-  onOpenSimulatedEmails?: () => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 export function Sidebar({ 
@@ -45,7 +46,8 @@ export function Sidebar({
   onOpenNotifications,
   isDarkMode,
   onToggleTheme,
-  onOpenSimulatedEmails
+  mobileOpen = false,
+  onMobileClose
 }: SidebarProps) {
   const isAdmin = currentUser.role === UserRole.ADMIN;
 
@@ -68,7 +70,7 @@ export function Sidebar({
   const activeMenu = isAdmin ? adminMenu : agentMenu;
 
   return (
-    <aside className="w-68 bg-slate-950 text-slate-300 flex flex-col h-screen shrink-0 border-r border-slate-900 shadow-xl" id="realtysync-sidebar">
+    <aside className={`w-68 bg-slate-950 text-slate-300 flex flex-col h-screen shrink-0 border-r border-slate-900 shadow-xl fixed lg:static inset-y-0 left-0 z-50 transform ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 transition-transform duration-200 ease-in-out`} id="realtysync-sidebar">
       {/* Brand Header */}
       <div className="p-5 border-b border-slate-900 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -82,6 +84,15 @@ export function Sidebar({
             <span className="text-[9.5px] text-teal-400 font-bold uppercase tracking-widest">Enterprise Broker Suite</span>
           </div>
         </div>
+        {onMobileClose && (
+          <button 
+            onClick={onMobileClose}
+            className="lg:hidden text-slate-400 hover:text-white p-1 hover:bg-slate-900 rounded cursor-pointer"
+            id="sidebar-mobile-close-btn"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* User Information Panel */}
@@ -150,18 +161,6 @@ export function Sidebar({
 
       {/* Bottom Footer Action Area */}
       <div className="p-4 border-t border-slate-905 bg-slate-1010/30 space-y-2 mt-auto">
-        <button
-          onClick={onOpenSimulatedEmails}
-          id="sidebar-btn-simulated-mailbox"
-          className="w-full flex items-center justify-between text-left text-xs bg-teal-950/20 hover:bg-teal-950/50 border border-teal-900/40 hover:border-teal-700 text-teal-300 px-3 py-2 rounded-lg transition-all cursor-pointer font-semibold animate-pulse-slow"
-        >
-          <span className="flex items-center gap-2">
-            <Mail className="w-3.5 h-3.5 text-teal-400" />
-            <span>Simulated Mailroom</span>
-          </span>
-          <span className="text-[9px] bg-teal-900/80 border border-teal-700/60 font-black px-1 rounded uppercase tracking-wider scale-90">DEMO</span>
-        </button>
-
         {isAdmin && (
           <button
             onClick={onOpenNotifications}

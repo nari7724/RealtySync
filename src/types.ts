@@ -70,6 +70,8 @@ export interface Client {
   dateRegistered: string;
   duplicateStatus: "None" | "Possible" | "Strong";
   status?: string;
+  isDeleted?: boolean;
+  is_deleted?: boolean;
 }
 
 export interface DuplicateCheckResult {
@@ -87,7 +89,7 @@ export interface DuplicateCheckResult {
   };
 }
 
-export type DualEntryStatus = "Pending Review" | "Confirmed Duplicate" | "False Positive" | "Resolved";
+export type DualEntryStatus = "Pending" | "Pending Review" | "Confirmed Duplicate" | "False Positive" | "Resolved";
 
 export interface DualEntry {
   id: string;
@@ -102,6 +104,7 @@ export interface DualEntry {
   dateB: string;
   similarityScore: number;
   status: DualEntryStatus;
+  resolution?: string;
   details: {
     clientA: Client;
     clientB: Client;

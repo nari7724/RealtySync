@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS "clients" (
   "assignedAgentName" TEXT NOT NULL,
   "dateRegistered" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   "duplicateStatus" TEXT NOT NULL DEFAULT 'None' CHECK ("duplicateStatus" IN ('None', 'Possible', 'Strong')),
-  "status" TEXT
+  "status" TEXT,
+  "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- Bookings/Appointments table
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS "dual_entries" (
   "dateB" TEXT NOT NULL,
   "similarityScore" NUMERIC NOT NULL DEFAULT 100,
   "status" TEXT NOT NULL DEFAULT 'Pending Review',
+  "resolution" TEXT,
   "details" JSONB NOT NULL
 );
 

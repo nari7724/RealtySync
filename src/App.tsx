@@ -246,6 +246,7 @@ export default function App() {
 
   // General App states
   const [currentTab, setCurrentTab] = useState("dashboard");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
   const [autoOpenAddClient, setAutoOpenAddClient] = useState(false);
   const [showEarliestConfirm, setShowEarliestConfirm] = useState(false);
@@ -253,8 +254,6 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [refreshStamp, setRefreshStamp] = useState(0);
-  const [simulatedEmailsOpen, setSimulatedEmailsOpen] = useState(false);
-  const [simulatedEmails, setSimulatedEmails] = useState<any[]>([]);
 
   // Dashboard Stats summary
   const [statsData, setStatsData] = useState<any | null>(null);
@@ -286,6 +285,7 @@ export default function App() {
 
   // Agent claims conflicts list (real-time)
   const [agentConflicts, setAgentConflicts] = useState<any[]>([]);
+  const [unfilteredDualEntries, setUnfilteredDualEntries] = useState<any[]>([]);
 
   const fetchAgentConflicts = async () => {
     if (!currentUser) return;
@@ -293,12 +293,13 @@ export default function App() {
       const res = await fetch("/api/dual-entries");
       if (res.ok) {
         const data = await res.json();
+        setUnfilteredDualEntries(data);
         const filtered = data.filter((entry: any) => {
+          const isPending = entry.status === "Pending" || entry.status === "Pending Review";
           if (currentUser.role === UserRole.ADMIN) {
-            return entry.status === "Pending Review";
+            return isPending;
           }
-          return (entry.agentIdA === currentUser.id || entry.agentIdB === currentUser.id) &&
-                 entry.status === "Pending Review";
+          return (entry.agentIdA === currentUser.id || entry.agentIdB === currentUser.id) && isPending;
         });
         const sorted = filtered.sort((a: any, b: any) => {
           const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -445,18 +446,6 @@ export default function App() {
     }
   };
   
-  const fetchSimulatedEmails = async () => {
-    try {
-      const res = await fetch("/api/simulated-emails");
-      if (res.ok) {
-        const data = await res.json();
-        setSimulatedEmails(data);
-      }
-    } catch (err) {
-      console.error("Error loading simulated emails:", err);
-    }
-  };
-
   useEffect(() => {
     if (!currentUser) return;
 
@@ -466,7 +455,6 @@ export default function App() {
     fetchStats();
     fetchRecentActivities();
     fetchEarliestBookings();
-    fetchSimulatedEmails();
     fetchAgentConflicts();
   }, [currentUser, refreshStamp]);
 
@@ -793,10 +781,39 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#F8FAFC] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex selection:bg-teal-500 selection:text-white" id="main-admin-layout">
+      
+      {/* Mobile Header Bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-slate-950 text-white flex items-center justify-between px-4 z-40 shadow">
+        <button
+          onClick={() => setMobileSidebarOpen(true)}
+          className="p-1.5 hover:bg-slate-900 rounded-lg text-slate-300 hover:text-white transition-all cursor-pointer"
+          id="mobile-hamburger-btn"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <span className="font-bold text-sm tracking-tight text-white flex items-center gap-1.5">
+          <span className="w-5 h-5 rounded bg-teal-500 flex items-center justify-center text-white text-[11px] font-black">RS</span>
+          RealtySync
+        </span>
+        <div className="w-9 h-9"></div> {/* Spacer for visual balance */}
+      </div>
+
+      {/* Mobile Sidebar Backdrop Overlay */}
+      {mobileSidebarOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-45"
+          onClick={() => setMobileSidebarOpen(false)}
+          id="mobile-sidebar-backdrop"
+        />
+      )}
+
       {/* Sidebar navigation */}
       <Sidebar 
         currentTab={currentTab} 
-        onTabChange={setCurrentTab} 
+        onTabChange={(tab) => {
+          setCurrentTab(tab);
+          setMobileSidebarOpen(false);
+        }} 
         currentUser={currentUser}
         unreadCount={agentConflicts.length}
         onLogout={handleLogout}
@@ -804,11 +821,12 @@ export default function App() {
         onOpenNotifications={() => setNotificationsOpen(true)}
         isDarkMode={isDarkMode}
         onToggleTheme={() => {}}
-        onOpenSimulatedEmails={() => setSimulatedEmailsOpen(true)}
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto h-screen p-8 relative flex flex-col justify-between">
+      <main className="flex-1 overflow-y-auto h-screen p-4 sm:p-6 lg:p-8 pt-20 lg:pt-8 relative flex flex-col justify-between">
         
         {/* Render Active View Tab */}
         <div className="space-y-8 animate-fade-in mb-12">
@@ -1225,7 +1243,7 @@ export default function App() {
                                       </td>
                                       <td className="py-2.5 px-3 text-right">
                                         <span className="inline-flex items-center gap-1 text-[10px] bg-sky-50 border border-sky-100 text-sky-700 hover:text-sky-805 font-bold px-2 py-0.5 rounded uppercase tracking-wider animate-pulse">
-                                          Pending Review
+                                          {conf.status}
                                         </span>
                                       </td>
                                     </tr>
@@ -1553,83 +1571,6 @@ export default function App() {
 
       </main>
 
-      {/* --- SIMULATED MAILBOX DRAWER FOR TESTING PASSWORD LOGINS & NOTIFICATIONS --- */}
-      {simulatedEmailsOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-end animate-fade-in" id="simulated-mailbox-overlay">
-          <div className="bg-slate-50 max-w-lg w-full h-full shadow-2xl flex flex-col justify-between overflow-hidden shrink-0">
-            {/* Drawer Header */}
-            <div className="bg-slate-900 text-white p-5 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-2">
-                <Mail className="w-5 h-5 text-teal-400 animate-pulse" />
-                <div>
-                  <h3 className="font-extrabold text-sm uppercase tracking-wider">Simulated System Mailroom</h3>
-                  <p className="text-[10px] text-teal-300 font-medium">In-app sandbox checking dispatched agent login credentials</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setSimulatedEmailsOpen(false)}
-                className="text-slate-400 hover:text-white p-1 bg-slate-800 rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {simulatedEmails.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 bg-white border border-slate-200/60 rounded-xl p-6 shadow-sm">
-                  <Mail className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                  <p className="text-xs font-semibold text-slate-600">No emails dispatched yet.</p>
-                  <p className="text-[10px] text-slate-400 mt-1">When an agent registers or changes password, their credentials will be logged here for demonstration testing.</p>
-                </div>
-              ) : (
-                simulatedEmails.map((mail) => (
-                  <div 
-                    key={mail.id} 
-                    className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex justify-between items-start mb-2 pb-2 border-b border-slate-150">
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">Simulated Dispatch</span>
-                        <h4 className="font-semibold text-slate-800 mt-1 text-xs">To: {mail.to}</h4>
-                      </div>
-                      <span className="text-[9px] text-slate-400 font-mono">{new Date(mail.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                    <p className="text-xs font-bold text-slate-900 mb-1">{mail.subject}</p>
-                    <pre className="text-[10px] leading-relaxed font-mono whitespace-pre-wrap text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-150">
-                      {mail.body}
-                    </pre>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Clear button */}
-            <div className="bg-white border-t border-slate-200 p-4 shrink-0 flex gap-2">
-              <button
-                onClick={async () => {
-                  try {
-                    await fetch("/api/simulated-emails", { method: "DELETE" });
-                    setSimulatedEmails([]);
-                  } catch (e) {
-                    console.error(e);
-                  }
-                }}
-                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 border border-slate-205 font-semibold rounded-lg text-xs cursor-pointer transition-colors"
-              >
-                Clear Mail Dispatch Ledger
-              </button>
-              <button
-                onClick={() => setSimulatedEmailsOpen(false)}
-                className="w-full py-2 bg-slate-900 hover:bg-slate-850 text-white font-semibold rounded-lg text-xs cursor-pointer transition-colors"
-              >
-                Dismiss Sandbox Mailroom
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* --- NOTIFICATIONS DRAWER POPUP OVERLAY WINDOW FOR BROKER ADMIN --- */}
       {notificationsOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-end animate-fade-in" id="notifications-overlay-window">
@@ -1655,24 +1596,53 @@ export default function App() {
                   <p className="text-xs">No active duplicate overlap alerts.</p>
                 </div>
               ) : (
-                notifications.map((notif) => (
-                  <div 
-                    key={notif.id} 
-                    className={`p-3.5 rounded-xl border text-xs leading-relaxed ${
-                      notif.read ? "bg-slate-50 border-slate-100 text-slate-600" : "bg-amber-50/70 border-amber-100 text-slate-800"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-1 gap-2">
-                      <strong className="font-bold text-slate-950 text-xs block">{notif.title}</strong>
-                      <span className="text-[9px] text-slate-400 shrink-0">{new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                notifications.map((notif) => {
+                  let matchingDual = unfilteredDualEntries.find(d => 
+                    (d.clientIdA === notif.clientId || d.clientIdB === notif.clientId)
+                  );
+                  if (!matchingDual && notif.message) {
+                    matchingDual = unfilteredDualEntries.find(d => {
+                      const nameA = d.clientNameA || d.details?.clientA?.firstName || "";
+                      const nameB = d.clientNameB || d.details?.clientB?.firstName || "";
+                      return (nameA && notif.message.includes(nameA)) || (nameB && notif.message.includes(nameB));
+                    });
+                  }
+
+                  return (
+                    <div 
+                      key={notif.id} 
+                      className={`p-3.5 rounded-xl border text-xs leading-relaxed ${
+                        notif.read ? "bg-slate-50 border-slate-100 text-slate-600" : "bg-amber-50/70 border-amber-100 text-slate-800"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-1 gap-2">
+                        <strong className="font-bold text-slate-950 text-xs block">{notif.title}</strong>
+                        <span className="text-[9px] text-slate-400 shrink-0">{new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <p className="text-slate-600">{notif.message}</p>
+                      
+                      {matchingDual && (
+                        <div className="mt-2">
+                          <button
+                            onClick={() => {
+                              setSelectedConflictId(matchingDual!.id);
+                              setCurrentTab("conflicts");
+                              setNotificationsOpen(false);
+                            }}
+                            className="text-[11px] font-bold text-teal-700 dark:text-teal-400 hover:underline flex items-center gap-1 cursor-pointer bg-teal-50 dark:bg-teal-950/40 px-2 py-1 rounded border border-teal-100 dark:border-teal-900/40 w-fit"
+                          >
+                            <span>Resolve Conflict:</span>
+                            <span className="font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded shadow-xs border dark:border-slate-800 text-[10px]">{matchingDual.id}</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {!notif.read && (
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mt-2"></span>
+                      )}
                     </div>
-                    <p className="text-slate-600">{notif.message}</p>
-                    
-                    {!notif.read && (
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mt-2"></span>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 

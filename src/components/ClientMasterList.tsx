@@ -53,7 +53,7 @@ export function ClientMasterList({
   const [clients, setClients] = useState<Client[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
 
   const [search, setSearch] = useState("");
@@ -612,42 +612,76 @@ export function ClientMasterList({
                           const matchingDual = allDualEntries.find(d => 
                             (d.clientIdA === client.id || d.clientIdB === client.id)
                           );
-                          const isPendingReview = matchingDual ? matchingDual.status === "Pending Review" : false;
+                          const isPendingReview = matchingDual ? (matchingDual.status === "Pending" || matchingDual.status === "Pending Review") : false;
 
-                          if (matchingDual && !isPendingReview) {
-                            return (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                                {matchingDual.status}
-                              </span>
-                            );
+                          if (matchingDual) {
+                            const isResolved = !isPendingReview;
+                            const notClean = client.duplicateStatus && client.duplicateStatus !== "None";
+
+                            if (currentUser.role === UserRole.ADMIN) {
+                              if (isResolved && notClean) {
+                                return (
+                                  <button
+                                    disabled
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-850 border border-slate-350 dark:border-slate-700 inline-flex items-center gap-1 opacity-95 cursor-default"
+                                  >
+                                    {matchingDual.resolution || matchingDual.status}
+                                  </button>
+                                );
+                              } else if (isPendingReview) {
+                                return (
+                                  <button
+                                    onClick={() => {
+                                      if (matchingDual) {
+                                        onSelectConflictId?.(matchingDual.id);
+                                      }
+                                      onTabChange?.("conflicts");
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    Resolve
+                                  </button>
+                                );
+                              } else {
+                                return (
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                                    {matchingDual.resolution || matchingDual.status}
+                                  </span>
+                                );
+                              }
+                            } else {
+                              // AGENT ROLE
+                              if (isResolved && notClean) {
+                                return (
+                                  <button
+                                    disabled
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-850 border border-slate-350 dark:border-slate-700 inline-flex items-center gap-1 opacity-95 cursor-default"
+                                  >
+                                    {matchingDual.resolution || matchingDual.status}
+                                  </button>
+                                );
+                              } else if (isPendingReview) {
+                                return (
+                                  <button
+                                    onClick={() => handleSurrenderClaim(client)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <HeartCrack className="w-3.5 h-3.5" />
+                                    Surrender Claim
+                                  </button>
+                                );
+                              } else {
+                                return (
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                                    {matchingDual.resolution || matchingDual.status}
+                                  </span>
+                                );
+                              }
+                            }
                           }
 
-                          if (currentUser.role === UserRole.ADMIN) {
-                            return (
-                              <button
-                                onClick={() => {
-                                  if (matchingDual) {
-                                    onSelectConflictId?.(matchingDual.id);
-                                  }
-                                  onTabChange?.("conflicts");
-                                }}
-                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
-                              >
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                                Resolve
-                              </button>
-                            );
-                          } else {
-                            return (
-                              <button
-                                onClick={() => handleSurrenderClaim(client)}
-                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-all shadow-sm inline-flex items-center gap-1 cursor-pointer"
-                              >
-                                <HeartCrack className="w-3.5 h-3.5" />
-                                Surrender Claim
-                              </button>
-                            );
-                          }
+                          return null;
                         })()}
                       </div>
                     </td>
@@ -1128,10 +1162,18 @@ export function ClientMasterList({
                               <span>• Registered Time: </span>
                               <span className="font-mono text-slate-500 dark:text-slate-400">{new Date(matchEntry.dateB).toLocaleString()}</span>
                             </div>
+                            <div>
+                              <span>• Status: </span>
+                              <strong className="text-slate-800 dark:text-slate-200">{matchEntry.status}</strong>
+                            </div>
+                            <div>
+                              <span>• Resolution: </span>
+                              <strong className="text-slate-800 dark:text-slate-200">{matchEntry.resolution || "Pending"}</strong>
+                            </div>
                           </div>
                         </div>
                         <p className="text-[11px] text-amber-805 dark:text-amber-400 bg-amber-100/30 dark:bg-amber-950/10 p-2 rounded leading-relaxed border dark:border-amber-900/20">
-                          <strong>Conflict Resolution Policy:</strong> This overlap case is logged under Conflict ID: <strong className="font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded shadow-sm border dark:border-slate-800">{matchEntry.id}</strong>. Current resolution status is <span className="underline font-bold text-amber-905 dark:text-amber-300">{matchEntry.status}</span>. Any override requires Senior Brokerage audit review.
+                          <strong>Conflict Resolution Policy:</strong> This overlap case is logged under Conflict ID: <strong className="font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded shadow-sm border dark:border-slate-800">{matchEntry.id}</strong>. Current resolution status is <span className="underline font-bold text-amber-905 dark:text-amber-300">{matchEntry.status}</span>, with Resolution classified as <span className="underline font-bold text-teal-805 dark:text-teal-400">{matchEntry.resolution || "Pending"}</span>.
                         </p>
                       </div>
                     ) : (

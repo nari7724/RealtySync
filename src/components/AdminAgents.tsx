@@ -33,6 +33,8 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
   
   // Form states
   const [generatedPasswordModal, setGeneratedPasswordModal] = useState<{ email: string; password?: string; name: string } | null>(null);
@@ -77,6 +79,7 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
   };
 
   useEffect(() => {
+    setCurrentPage(1);
     fetchAgents();
   }, [searchQuery, statusFilter]);
 
@@ -281,90 +284,128 @@ export function AdminAgents({ onAddLog, currentUser }: AdminAgentsProps) {
           <p className="text-slate-500 text-sm">No registered agents matched the search filters.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-5" id="agents-grid-container">
-          {agents.map((agent) => (
-            <div 
-              key={agent.id} 
-              className={`bg-white rounded-xl border p-5 shadow-sm transition-all relative overflow-hidden flex flex-col justify-between ${
-                agent.status === "Active" ? "border-slate-100" : "border-red-100 bg-red-50/10"
-              }`}
-            >
-              {/* Soft status tag indicator */}
-              <div className="absolute right-4 top-4">
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                  agent.status === "Active" ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"
-                }`}>
-                  {agent.status}
-                </span>
-              </div>
-
-              {/* Profile body */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-full font-bold flex items-center justify-center text-md uppercase ${
-                    agent.status === "Active" ? "bg-teal-50 text-teal-700" : "bg-slate-100 text-slate-500"
-                  }`}>
-                    {agent.firstName[0]}{agent.lastName[0]}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-slate-900 leading-snug text-base">
-                      {agent.firstName} {agent.middleName ? `${agent.middleName} ` : ""}{agent.lastName}
-                    </h3>
-                    <p className="text-xs text-slate-400">Registered: {new Date(agent.createdAt).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-slate-600 border-t border-slate-100/70 pt-3">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="truncate">{agent.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span>{agent.mobileNumber}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-xs font-mono font-medium text-slate-700">PRC: {agent.prcLicenseNumber}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
-                <button
-                  onClick={() => handleOpenEdit(agent)}
-                  id={`agent-btn-edit-${agent.id}`}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  Edit Profile
-                </button>
-
-                <button
-                  onClick={() => handleToggleStatus(agent)}
-                  id={`agent-btn-status-${agent.id}`}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 border cursor-pointer ${
-                    agent.status === "Active" 
-                      ? "text-red-650 bg-red-50 hover:bg-red-100 border-red-200" 
-                      : "text-green-650 bg-green-50 hover:bg-green-100 border-green-200"
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-5" id="agents-grid-container">
+            {(() => {
+              const sorted = [...agents].sort((a, b) => {
+                const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return timeB - timeA;
+              });
+              const paginated = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+              return paginated.map((agent) => (
+                <div 
+                  key={agent.id} 
+                  className={`bg-white rounded-xl border p-5 shadow-sm transition-all relative overflow-hidden flex flex-col justify-between ${
+                    agent.status === "Active" ? "border-slate-100" : "border-red-100 bg-red-50/10"
                   }`}
                 >
-                  {agent.status === "Active" ? (
-                    <>
-                      <UserX className="w-3.5 h-3.5" />
-                      Deactivate Agent
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Reactivate Agent
-                    </>
-                  )}
-                </button>
+                  {/* Soft status tag indicator */}
+                  <div className="absolute right-4 top-4">
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                      agent.status === "Active" ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"
+                    }`}>
+                      {agent.status}
+                    </span>
+                  </div>
+
+                  {/* Profile body */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-full font-bold flex items-center justify-center text-md uppercase ${
+                        agent.status === "Active" ? "bg-teal-50 text-teal-700" : "bg-slate-100 text-slate-500"
+                      }`}>
+                        {agent.firstName[0]}{agent.lastName[0]}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900 leading-snug text-base">
+                          {agent.firstName} {agent.middleName ? `${agent.middleName} ` : ""}{agent.lastName}
+                        </h3>
+                        <p className="text-xs text-slate-400">Registered: {new Date(agent.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-sm text-slate-600 border-t border-slate-100/70 pt-3">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="truncate">{agent.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Smartphone className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span>{agent.mobileNumber}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="bg-slate-100 px-1.5 py-0.5 rounded text-xs font-mono font-medium text-slate-700">PRC: {agent.prcLicenseNumber}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
+                    <button
+                      onClick={() => handleOpenEdit(agent)}
+                      id={`agent-btn-edit-${agent.id}`}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      Edit Profile
+                    </button>
+
+                    <button
+                      onClick={() => handleToggleStatus(agent)}
+                      id={`agent-btn-status-${agent.id}`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 border cursor-pointer ${
+                        agent.status === "Active" 
+                          ? "text-red-650 bg-red-50 hover:bg-red-100 border-red-200" 
+                          : "text-green-650 bg-green-50 hover:bg-green-100 border-green-200"
+                      }`}
+                    >
+                      {agent.status === "Active" ? (
+                        <>
+                          <UserX className="w-3.5 h-3.5" />
+                          Deactivate Agent
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Reactivate Agent
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+
+          {/* Simple Pagination Footer */}
+          {(() => {
+            const totalItems = agents.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            if (totalPages <= 1) return null;
+            return (
+              <div className="bg-slate-50 border border-slate-200 px-6 py-3 flex items-center justify-between rounded-xl">
+                <span className="text-xs text-slate-500">Page {currentPage} of {totalPages} ({totalItems} entries total)</span>
+                <div className="flex gap-1.5">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="px-2.5 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 border border-slate-200 text-slate-600 rounded text-xs font-semibold"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="px-2.5 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 border border-slate-200 text-slate-600 rounded text-xs font-semibold"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })()}
         </div>
       )}
 

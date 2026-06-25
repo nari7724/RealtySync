@@ -112,6 +112,8 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Open"); // Default status filter is Open
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   const [savingId, setSavingId] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -155,7 +157,19 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        setBookings(data);
+        // Sort from earliest schedule to latest
+        const sorted = [...data].sort((a, b) => {
+          const dateA = a.appointmentDate || "";
+          const dateB = b.appointmentDate || "";
+          const timeA = a.appointmentTime || "";
+          const timeB = b.appointmentTime || "";
+          
+          const dateTimeA = `${dateA}T${timeA}`;
+          const dateTimeB = `${dateB}T${timeB}`;
+          
+          return dateTimeA.localeCompare(dateTimeB);
+        });
+        setBookings(sorted);
       }
     } catch (err) {
       console.error("Error loading bookings list:", err);
@@ -169,6 +183,7 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
   }, [triggerRefreshStamp]);
 
   useEffect(() => {
+    setCurrentPage(1);
     fetchBookings();
   }, [search, statusFilter, triggerRefreshStamp]);
 
@@ -307,7 +322,7 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100/70 dark:divide-slate-800/80 text-sm">
-                {bookings.map((booking, index) => (
+                {bookings.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((booking, index) => (
                   <tr 
                     key={booking.id} 
                     className={`${
@@ -423,6 +438,29 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
               </tbody>
             </table>
           </div>
+          {bookings.length > itemsPerPage && (
+            <div className="bg-slate-50 dark:bg-slate-950/50 border-t border-slate-100 dark:border-slate-800 px-6 py-3 flex items-center justify-between">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Page {currentPage} of {Math.ceil(bookings.length / itemsPerPage)} ({bookings.length} entries total)
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  className="px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded text-xs font-bold transition-all"
+                >
+                  Previous
+                </button>
+                <button
+                  disabled={currentPage === Math.ceil(bookings.length / itemsPerPage)}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  className="px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded text-xs font-bold transition-all"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {selectedBooking && (

@@ -12,6 +12,8 @@ export function AuditLogs() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -31,6 +33,10 @@ export function AuditLogs() {
   useEffect(() => {
     fetchLogs();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, roleFilter]);
 
   const filteredLogs = logs.filter((log) => {
     const q = search.toLowerCase();
@@ -117,67 +123,103 @@ export function AuditLogs() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100/70 dark:divide-slate-800/60 text-sm">
-                {filteredLogs.map((log, index) => (
-                  <tr 
-                    key={log.id} 
-                    className={`${
-                      index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/30 dark:bg-slate-950/20"
-                    } hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors`}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-slate-400 dark:text-slate-500 text-xs">
-                      <div className="flex items-center gap-1.5 font-mono">
-                        <Calendar className="w-3.5 h-3.5 text-slate-350 dark:text-slate-650" />
-                        {new Date(log.timestamp).toLocaleString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug">{log.userName}</div>
-                        <div className="text-xs text-slate-400 dark:text-slate-500">{log.userEmail}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide ${
-                        log.userRole === "ADMIN" 
-                          ? "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-900/40" 
-                          : "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-900/40"
-                      }`}>
-                        {log.userRole}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`font-semibold text-xs py-1 px-2.5 rounded-lg ${
-                        log.action.includes("Duplicate") || log.action.includes("Deactivated") 
-                          ? "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300" 
-                          : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                      }`}>
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 font-medium text-slate-700 dark:text-slate-300">{log.entity}</td>
-                    <td className="px-6 py-4 min-w-[300px]">
-                      {log.newValue ? (
-                        <div className="space-y-1.5 max-w-sm">
-                          {log.previousValue && (
-                            <div className="text-xs text-slate-400 dark:text-slate-500 truncate">
-                              <span className="font-bold uppercase text-[9px] mr-1">Prev:</span>
-                              {log.previousValue}
-                            </div>
-                          )}
-                          <div className="text-xs text-teal-850 dark:text-teal-300 bg-teal-50/50 dark:bg-teal-950/30 p-2 border border-teal-100/50 dark:border-teal-900/50 rounded break-all max-h-24 overflow-y-auto font-mono">
-                            <span className="font-bold uppercase text-[9px] mr-1 bg-teal-200/50 dark:bg-teal-900/50 px-1 py-0.5 rounded text-teal-900 dark:text-teal-200">New:</span> 
-                            {log.newValue}
-                          </div>
+                {(() => {
+                  const sorted = [...filteredLogs].sort((a, b) => {
+                    const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                    const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                    return timeB - timeA;
+                  });
+                  const paginated = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+                  return paginated.map((log, index) => (
+                    <tr 
+                      key={log.id} 
+                      className={`${
+                        index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/30 dark:bg-slate-950/20"
+                      } hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors`}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-slate-400 dark:text-slate-500 text-xs">
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <Calendar className="w-3.5 h-3.5 text-slate-350 dark:text-slate-650" />
+                          {new Date(log.timestamp).toLocaleString()}
                         </div>
-                      ) : (
-                        <span className="text-xs text-slate-450 dark:text-slate-500 italic">None logged.</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug">{log.userName}</div>
+                          <div className="text-xs text-slate-400 dark:text-slate-500">{log.userEmail}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide ${
+                          log.userRole === "ADMIN" 
+                            ? "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-900/40" 
+                            : "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-900/40"
+                        }`}>
+                          {log.userRole}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`font-semibold text-xs py-1 px-2.5 rounded-lg ${
+                          log.action.includes("Duplicate") || log.action.includes("Deactivated") 
+                            ? "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300" 
+                            : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                        }`}>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-medium text-slate-700 dark:text-slate-300">{log.entity}</td>
+                      <td className="px-6 py-4 min-w-[300px]">
+                        {log.newValue ? (
+                          <div className="space-y-1.5 max-w-sm">
+                            {log.previousValue && (
+                              <div className="text-xs text-slate-400 dark:text-slate-500 truncate">
+                                <span className="font-bold uppercase text-[9px] mr-1">Prev:</span>
+                                {log.previousValue}
+                              </div>
+                            )}
+                            <div className="text-xs text-teal-850 dark:text-teal-300 bg-teal-50/50 dark:bg-teal-950/30 p-2 border border-teal-100/50 dark:border-teal-900/50 rounded break-all max-h-24 overflow-y-auto font-mono">
+                              <span className="font-bold uppercase text-[9px] mr-1 bg-teal-200/50 dark:bg-teal-900/50 px-1 py-0.5 rounded text-teal-900 dark:text-teal-200">New:</span> 
+                              {log.newValue}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-450 dark:text-slate-500 italic">None logged.</span>
+                        )}
+                      </td>
+                    </tr>
+                  ));
+                })()}
               </tbody>
             </table>
           </div>
+
+          {/* Simple Pagination Footer */}
+          {(() => {
+            const totalItems = filteredLogs.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            if (totalPages <= 1) return null;
+            return (
+              <div className="bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 px-6 py-3.5 flex items-center justify-between rounded-b-xl">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Page {currentPage} of {totalPages} ({totalItems} entries total)</span>
+                <div className="flex gap-1.5">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded text-xs font-semibold"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded text-xs font-semibold"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

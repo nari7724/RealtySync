@@ -38,6 +38,8 @@ export function ConflictQueue({
 }: ConflictQueueProps) {
   const [conflicts, setConflicts] = useState<DualEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
   const [selectedConflict, setSelectedConflict] = useState<DualEntry | null>(null);
   const [resolving, setResolving] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -61,11 +63,20 @@ export function ConflictQueue({
       if (res.ok) {
         const data = await res.json();
         // Fulfill instruction: "Remove Conflicting Client details when conflict has been reviewed and resolved."
-        const pendingConflicts = data.filter((entry: any) => entry.status === "Pending Review");
-        setConflicts(pendingConflicts);
+        const pendingConflicts = data.filter((entry: any) => entry.status === "Pending" || entry.status === "Pending Review");
+        
+        // Sort with latest record first
+        const sorted = pendingConflicts.sort((a: any, b: any) => {
+          const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return tB - tA;
+        });
+        
+        setConflicts(sorted);
+        setCurrentPage(1);
 
         if (initialSelectedConflictId) {
-          const matched = pendingConflicts.find((e: any) => e.id === initialSelectedConflictId);
+          const matched = sorted.find((e: any) => e.id === initialSelectedConflictId);
           if (matched) {
             setSelectedConflict(matched);
           }
@@ -198,60 +209,87 @@ export function ConflictQueue({
               <p className="text-xs text-slate-400 mt-1">All agent registries are cleanly indexed with 100% duplicate protection.</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-150 dark:divide-slate-800 dark:bg-slate-900">
-              {conflicts.map((entry) => {
-                const isSelected = selectedConflict?.id === entry.id;
-                return (
-                  <button
-                    key={entry.id}
-                    onClick={() => handleOpenDetail(entry)}
-                    id={`conflict-card-${entry.id}`}
-                    className={`w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-850/40 transition-all block relative border-l-3 ${
-                      isSelected 
-                        ? "border-l-teal-600 bg-teal-50/20 dark:bg-teal-950/20" 
-                        : entry.status === "Pending Review" 
-                          ? "border-l-amber-500 hover:bg-slate-50 dark:hover:bg-slate-800/40" 
-                          : "border-l-slate-300 dark:border-l-slate-700"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-1.5 gap-2">
-                      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{entry.clientName}</h3>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        entry.similarityScore >= 95 
-                          ? "bg-red-100/80 dark:bg-red-950/80 text-red-700 dark:text-red-400" 
-                          : "bg-amber-100/80 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400"
-                      }`}>
-                        {entry.similarityScore}% Risk
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-medium text-slate-700 dark:text-slate-300">Agent A:</span>
-                        <span className="truncate">{entry.agentNameA}</span>
+            <>
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-150 dark:divide-slate-800 dark:bg-slate-900">
+                {conflicts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((entry) => {
+                  const isSelected = selectedConflict?.id === entry.id;
+                  return (
+                    <button
+                      key={entry.id}
+                      onClick={() => handleOpenDetail(entry)}
+                      id={`conflict-card-${entry.id}`}
+                      className={`w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-850/40 transition-all block relative border-l-3 ${
+                        isSelected 
+                          ? "border-l-teal-600 bg-teal-50/20 dark:bg-teal-950/20" 
+                          : (entry.status === "Pending" || entry.status === "Pending Review")
+                            ? "border-l-amber-500 hover:bg-slate-50 dark:hover:bg-slate-800/40" 
+                            : "border-l-slate-300 dark:border-l-slate-700"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-1.5 gap-2">
+                        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{entry.clientName}</h3>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          entry.similarityScore >= 95 
+                            ? "bg-red-100/80 dark:bg-red-950/80 text-red-700 dark:text-red-400" 
+                            : "bg-amber-100/80 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400"
+                        }`}>
+                          {entry.similarityScore}% Risk
+                        </span>
                       </div>
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-medium text-slate-700 dark:text-slate-300">Agent B:</span>
-                        <span className="truncate">{entry.agentNameB}</span>
-                      </div>
-                    </div>
 
-                    <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-100/70 dark:border-slate-800/70">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                        entry.status === "Pending Review" 
-                          ? "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-900" 
-                          : entry.status === "False Positive"
-                            ? "bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-350 border border-slate-200 dark:border-slate-700"
-                            : "bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-400 border border-green-150 dark:border-green-900"
-                      }`}>
-                        {entry.status}
-                      </span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                      <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-medium text-slate-700 dark:text-slate-300">Agent A:</span>
+                          <span className="truncate">{entry.agentNameA}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-medium text-slate-700 dark:text-slate-300">Agent B:</span>
+                          <span className="truncate">{entry.agentNameB}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-100/70 dark:border-slate-800/70">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                          (entry.status === "Pending" || entry.status === "Pending Review")
+                            ? "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-900" 
+                            : entry.status === "False Positive"
+                              ? "bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-350 border border-slate-200 dark:border-slate-700"
+                              : "bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-400 border border-green-150 dark:border-green-900"
+                        }`}>
+                          {entry.status}
+                        </span>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Simple Pagination Footer */}
+              {conflicts.length > itemsPerPage && (
+                <div className="bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between shrink-0">
+                  <span className="text-[10px] text-slate-500">
+                    Page {currentPage} of {Math.ceil(conflicts.length / itemsPerPage)}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                      className="px-1.5 py-0.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded text-[10px] font-semibold"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      disabled={currentPage === Math.ceil(conflicts.length / itemsPerPage)}
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                      className="px-1.5 py-0.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded text-[10px] font-semibold"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -269,7 +307,7 @@ export function ConflictQueue({
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Overlap Match Score: <strong className="text-amber-600 dark:text-amber-400">{selectedConflict.similarityScore}% Match</strong></p>
                 </div>
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase ${
-                  selectedConflict.status === "Pending Review" ? "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-400" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                  (selectedConflict.status === "Pending" || selectedConflict.status === "Pending Review") ? "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-400" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                 }`}>
                   {selectedConflict.status}
                 </span>
@@ -460,7 +498,7 @@ export function ConflictQueue({
               </div>
 
               {/* Administrative Resolution Actions */}
-              {selectedConflict.status === "Pending Review" && (
+              {(selectedConflict.status === "Pending" || selectedConflict.status === "Pending Review") && (
                 <div className="bg-slate-50 dark:bg-slate-950 border-t border-slate-150 dark:border-slate-800 p-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
                   <div className="text-sm">
                     <strong className="text-slate-905 dark:text-slate-200 block font-semibold text-slate-900">Conflict Resolution Decision:</strong>
@@ -482,7 +520,7 @@ export function ConflictQueue({
                       id="btn-resolve-confirmed-duplicate"
                       className="px-4 py-2 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 hover:bg-amber-150 border border-amber-200 dark:border-amber-900 font-bold rounded-lg text-xs cursor-pointer"
                     >
-                      Mark Duplicate (Keep Client A)
+                      Mark Duplicate (Keep Agent A)
                     </button>
                     <button
                       onClick={() => handleResolveAction("Resolve", "Resolved", 1)} // merge, Client B takes ownership
@@ -490,7 +528,7 @@ export function ConflictQueue({
                       id="btn-resolve-merge-b"
                       className="px-4 py-2 bg-teal-700 text-white hover:bg-teal-800 font-bold rounded-lg text-xs shadow-sm cursor-pointer"
                     >
-                      Approve Broker B Claim
+                      Approve Agent B Claim
                     </button>
                   </div>
                 </div>
