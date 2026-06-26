@@ -295,16 +295,21 @@ export default function App() {
         const data = await res.json();
         setUnfilteredDualEntries(data);
         const filtered = data.filter((entry: any) => {
-          const isPending = entry.status === "Pending" || entry.status === "Pending Review";
+          const statusLower = (entry.status || "").toLowerCase();
+          const isPending = statusLower === "pending" || statusLower === "pending review";
           if (currentUser.role === UserRole.ADMIN) {
             return isPending;
           }
           return (entry.agentIdA === currentUser.id || entry.agentIdB === currentUser.id) && isPending;
         });
         const sorted = filtered.sort((a: any, b: any) => {
-          const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return tA - tB;
+          const getConflictTime = (entry: any) => {
+            if (entry.createdAt) return new Date(entry.createdAt).getTime();
+            if (entry.dateB) return new Date(entry.dateB).getTime();
+            if (entry.dateA) return new Date(entry.dateA).getTime();
+            return 0;
+          };
+          return getConflictTime(a) - getConflictTime(b);
         });
         setAgentConflicts(sorted);
       }
@@ -875,7 +880,7 @@ export default function App() {
                         </div>
                         <div>
                           <div className="text-3xl font-black text-slate-800 dark:text-slate-100">
-                            <Counter value={statsData.totalDuplicates || 0} />
+                            <Counter value={agentConflicts.length} />
                           </div>
                           <div className="text-[9px] text-slate-450 dark:text-slate-500 mt-1 font-semibold font-mono uppercase tracking-wide">
                             Pending Integrity Conflicts
@@ -901,29 +906,80 @@ export default function App() {
                       {agentConflicts.length === 0 ? (
                         <p className="text-xs text-slate-455 text-center py-4 font-medium">No pending integrity conflicts in queue.</p>
                       ) : (
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {agentConflicts.slice(0, 3).map((conflict) => (
-                            <div key={conflict.id} className="py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                              <div className="space-y-1 text-xs">
-                                <div className="font-bold text-slate-950">
-                                  Client Profile: {conflict.clientNameA || "Unnamed Client"}
-                                </div>
-                                <div className="text-[11px] text-slate-500 space-y-0.5">
-                                  <div><span className="font-semibold text-slate-600">Claimant Agent A:</span> {conflict.agentNameA} (ID: {conflict.agentIdA})</div>
-                                  <div><span className="font-semibold text-slate-600">Claimant Agent B:</span> {conflict.agentNameB} (ID: {conflict.agentIdB})</div>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  setSelectedConflictId(conflict.id);
-                                  setCurrentTab("conflicts");
-                                }}
-                                className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-700 text-[11px] font-bold text-white transition-all cursor-pointer shadow-sm"
-                              >
-                                Resolve Overlap
-                              </button>
-                            </div>
-                          ))}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-100 dark:border-slate-800/85 text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">
+                                <th className="py-2.5 px-3">Duplicate ID</th>
+                                <th className="py-2.5 px-3">Agent A Details</th>
+                                <th className="py-2.5 px-3">Agent B Details</th>
+                                <th className="py-2.5 px-3">Conflict Date</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-850/65">
+                              {agentConflicts.slice(0, 3).map((conflict, index) => {
+                                const dateStr = conflict.createdAt || conflict.dateB || conflict.dateA;
+                                const formattedDate = dateStr 
+                                  ? new Date(dateStr).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) 
+                                  : "—";
+
+                                const clientNameA = conflict.details?.clientA 
+                                  ? `${conflict.details.clientA.firstName} ${conflict.details.clientA.lastName}` 
+                                  : conflict.clientName;
+                                const clientNameB = conflict.details?.clientB 
+                                  ? `${conflict.details.clientB.firstName} ${conflict.details.clientB.lastName}` 
+                                  : conflict.clientName;
+
+                                return (
+                                  <tr 
+                                    key={conflict.id} 
+                                    className={`text-xs text-slate-700 dark:text-slate-300 ${
+                                      index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/40 dark:bg-slate-950/20"
+                                    } hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors font-medium`}
+                                  >
+                                    {/* Column 1: Clickable Duplicate ID */}
+                                    <td className="py-3 px-3 whitespace-nowrap">
+                                      <button
+                                        onClick={() => {
+                                          setSelectedConflictId(conflict.id);
+                                          setCurrentTab("conflicts");
+                                        }}
+                                        className="font-mono font-extrabold text-rose-650 hover:text-rose-850 dark:text-rose-400 dark:hover:text-rose-300 hover:underline bg-rose-50 dark:bg-rose-950/40 border border-rose-100/70 dark:border-rose-900/40 px-2.5 py-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] shadow-xs uppercase tracking-wide font-mono text-left"
+                                        title="Click to resolve this conflict in the dual entry queue"
+                                      >
+                                        {conflict.id}
+                                      </button>
+                                    </td>
+
+                                    {/* Column 2: Agent A Details */}
+                                    <td className="py-3 px-3">
+                                      <div className="space-y-1">
+                                        <div><span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase mr-1">Client ID:</span><span className="font-mono text-slate-800 dark:text-slate-200">{conflict.clientIdA}</span></div>
+                                        <div><span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase mr-1">Client Name:</span><span className="font-bold text-slate-900 dark:text-slate-100">{clientNameA}</span></div>
+                                        <div><span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase mr-1">Agent ID:</span><span className="font-mono text-slate-800 dark:text-slate-200">{conflict.agentIdA}</span></div>
+                                        <div><span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase mr-1">Agent Name:</span><span className="font-bold text-slate-900 dark:text-slate-100">{conflict.agentNameA}</span></div>
+                                      </div>
+                                    </td>
+
+                                    {/* Column 3: Agent B Details */}
+                                    <td className="py-3 px-3">
+                                      <div className="space-y-1">
+                                        <div><span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase mr-1">Client ID:</span><span className="font-mono text-slate-800 dark:text-slate-200">{conflict.clientIdB}</span></div>
+                                        <div><span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase mr-1">Client Name:</span><span className="font-bold text-slate-900 dark:text-slate-100">{clientNameB}</span></div>
+                                        <div><span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase mr-1">Agent ID:</span><span className="font-mono text-slate-800 dark:text-slate-200">{conflict.agentIdB}</span></div>
+                                        <div><span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase mr-1">Agent Name:</span><span className="font-bold text-slate-900 dark:text-slate-100">{conflict.agentNameB}</span></div>
+                                      </div>
+                                    </td>
+
+                                    {/* Column 4: Date Conflict Occurs */}
+                                    <td className="py-3 px-3 whitespace-nowrap font-mono text-[11px] text-slate-500">
+                                      {formattedDate}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       )}
                     </div>
@@ -1021,32 +1077,6 @@ export default function App() {
                 
                 {/* Board: Primary Action Cards / Overlap alarm panels */}
                 <div className="space-y-6">
-                  {/* Newly discovered conflicts table log for Admins */}
-                  {isAdmin && notifications.length > 0 && (
-                    <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-5 shadow-sm space-y-4">
-                      <div className="flex items-center justify-between border-b border-amber-200/50 pb-2">
-                        <div className="flex items-center gap-1.5 text-amber-800 font-bold text-sm uppercase tracking-wide">
-                          <ShieldAlert className="w-4 h-4" />
-                          Duplicate Entry Alerts ({unreadNotifCount} unread)
-                        </div>
-                        <button onClick={() => setCurrentTab("conflicts")} className="text-xs hover:underline text-amber-800 font-semibold inline-flex items-center gap-1">
-                          Review All Conflicts <ChevronRight className="w-3 h-3" />
-                        </button>
-                      </div>
-
-                      <div className="space-y-2.5">
-                        {notifications.slice(0, 2).map((notif) => (
-                          <div key={notif.id} className="bg-white/80 border border-amber-100 rounded-lg p-3.5 text-xs text-slate-700 flex justify-between gap-4 items-start shadow-sm">
-                            <div>
-                              <strong className="block text-slate-900 mb-0.5">{notif.title}</strong>
-                              <p className="text-slate-600 leading-normal">{notif.message}</p>
-                            </div>
-                            <span className="text-[10px] text-slate-400 font-semibold underline shrink-0">{new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   {/* Today's Earliest Open Appointments (Agents Role Only) */}
                   {!isAdmin && (
                     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 shadow-sm p-6 space-y-4">
@@ -1106,10 +1136,10 @@ export default function App() {
                                       </div>
                                     </td>
                                     <td className="py-3 px-3 max-w-[200px] font-medium text-slate-655 dark:text-slate-400">
-                                      <div className="font-bold text-slate-900 dark:text-slate-200">{b.location || "—"}</div>
+                                      <div className="font-bold text-slate-900 dark:text-slate-200">📍 {b.location || "—"}</div>
                                       {b.location && REALTY_PROJECT_ADDRESSES[b.location] && (
-                                        <div className="text-[10px] text-slate-455 dark:text-slate-550 mt-1 leading-snug font-medium italic">
-                                          Location: {REALTY_PROJECT_ADDRESSES[b.location]}
+                                        <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-1 leading-snug font-semibold italic">
+                                          Address: {REALTY_PROJECT_ADDRESSES[b.location]}
                                         </div>
                                       )}
                                     </td>
@@ -1169,101 +1199,6 @@ export default function App() {
                     </div>
                   )}
                 </div>
-
-                  {/* Real-time Agent Client Conflicts Alert Card (Client Details Conflicts) */}
-                  {!isAdmin && (
-                    <div className="bg-white border border-slate-100 rounded-xl shadow-sm p-6 space-y-4">
-                      <div className="flex items-center justify-between border-b border-rose-100 pb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="p-2 rounded bg-rose-50 text-rose-600 animate-pulse">
-                            <AlertTriangle className="w-4 h-4" />
-                          </div>
-                          <div className="text-left">
-                            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                              Client Details Conflicts ({agentConflicts.length})
-                            </h2>
-                            <p className="text-xs text-slate-500 mt-0.5">Real-time indicators showing conflicting claims on client registry entries with other active agents.</p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-mono bg-rose-50 border border-slate-150 font-bold text-rose-750 px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">
-                          Pipeline Integrity Scan
-                        </span>
-                      </div>
-
-                      {agentConflicts.length > 0 ? (
-                        <div className="space-y-3">
-                          <p className="text-xs text-amber-800 bg-amber-50/60 border border-amber-100 rounded-lg p-3 leading-relaxed font-semibold animate-pulse">
-                            ⚠️ <strong>Attention:</strong> The clients listed below are requested by other active realty agents. These files are flagged for Administrator arbitration to determine sole client representation. Your system priority remains active pending final review.
-                          </p>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs">
-                              <thead>
-                                <tr className="border-b border-slate-100 text-[10px] font-bold uppercase text-slate-400 tracking-wider">
-                                  <th className="py-2 px-3">Conflicting Client</th>
-                                  <th className="py-2 px-3">Overlapping Agent</th>
-                                  <th className="py-2 px-3">My Date</th>
-                                  <th className="py-2 px-3">Their Date</th>
-                                  <th className="py-2 px-3">Similarity</th>
-                                  <th className="py-2 px-3 text-right">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 font-medium">
-                                {agentConflicts.map((conf, index) => {
-                                  // Determine which agent is current user and which is opposing agent
-                                  const isUserA = conf.agentIdA === currentUser.id;
-                                  const otherAgentName = isUserA ? conf.agentNameB : conf.agentNameA;
-                                  const myDate = isUserA ? conf.dateA : conf.dateB;
-                                  const opposingDate = isUserA ? conf.dateB : conf.dateA;
-                                  
-                                  return (
-                                    <tr 
-                                      key={conf.id} 
-                                      className={`${
-                                        index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/40 dark:bg-slate-950/20"
-                                      } hover:bg-slate-50/50 transition-colors`}
-                                    >
-                                      <td className="py-2.5 px-3">
-                                        <div className="font-bold text-slate-950">{conf.clientName}</div>
-                                        <div className="text-[10px] text-slate-400 font-mono">ID: {isUserA ? conf.clientIdA : conf.clientIdB}</div>
-                                      </td>
-                                      <td className="py-2.5 px-3 text-slate-705">
-                                        <div className="font-bold text-slate-800">{otherAgentName}</div>
-                                        <div className="text-[10px] text-slate-450 font-mono">Agent ID: {isUserA ? conf.agentIdB : conf.agentIdA}</div>
-                                      </td>
-                                      <td className="py-2.5 px-3 font-mono text-emerald-700 font-bold">
-                                        {myDate}
-                                      </td>
-                                      <td className="py-2.5 px-3 font-mono text-slate-500">
-                                        {opposingDate}
-                                      </td>
-                                      <td className="py-2.5 px-3">
-                                        <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[10px] font-mono">
-                                          {conf.similarityScore}% Match
-                                        </span>
-                                      </td>
-                                      <td className="py-2.5 px-3 text-right">
-                                        <span className="inline-flex items-center gap-1 text-[10px] bg-sky-50 border border-sky-100 text-sky-700 hover:text-sky-805 font-bold px-2 py-0.5 rounded uppercase tracking-wider animate-pulse">
-                                          {conf.status}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-5 text-center flex flex-col items-center justify-center">
-                          <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
-                            <CheckCircle className="w-5 h-5 text-emerald-600" />
-                          </div>
-                          <p className="text-xs font-bold text-slate-800">Your Lead Pipeline is 100% Secure</p>
-                          <p className="text-[11px] text-slate-450 mt-0.5 font-medium">No overlapping agent claims found in the live registry. All commissions and allocation tracks are safe.</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {/* Core SaaS overview dashboard links */}
                   <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-4">

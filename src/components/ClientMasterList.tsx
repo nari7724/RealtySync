@@ -66,7 +66,7 @@ export function ClientMasterList({
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [selectedOverlapClient, setSelectedOverlapClient] = useState<Client | null>(null);
   const [allDualEntries, setAllDualEntries] = useState<any[]>([]);
-  const [realtyProjects, setRealtyProjects] = useState<string[]>([]);
+  const [realtyProjects, setRealtyProjects] = useState<{ name: string; address?: string }[]>([]);
 
   // Custom Add Client Modal triggers
   const [showAddClientModal, setShowAddClientModal] = useState(false);
@@ -750,7 +750,7 @@ export function ClientMasterList({
       {/* MODAL WINDOWS A: SET AN APPOINTMENT FOR SELECTED CLIENT */}
       {bookingClient && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="booking-modal-overlay">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden shrink-0">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shrink-0">
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-teal-700 dark:text-teal-400" />
@@ -761,7 +761,7 @@ export function ClientMasterList({
               </button>
             </div>
 
-            <form onSubmit={handleBookingSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleBookingSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
               {/* Dynamic Error Indicator */}
               {bookingError && (
                 <div className="bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 p-3 rounded-lg text-xs font-semibold flex items-start gap-2 border border-red-100 dark:border-red-900 animate-pulse">
@@ -816,7 +816,7 @@ export function ClientMasterList({
                     >
                       <option value="">Select a Realty Project...</option>
                       {realtyProjects.map((proj) => (
-                        <option key={proj} value={proj}>{proj}</option>
+                        <option key={proj.name} value={proj.name}>{proj.name}</option>
                       ))}
                     </select>
                   </div>
@@ -828,28 +828,10 @@ export function ClientMasterList({
                       readOnly
                       onFocus={() => setAddressInputFocused(true)}
                       onBlur={() => setAddressInputFocused(false)}
-                      value={({
-                        "Avida Towers Riala": "Apas, Cebu IT Park, Cebu City, Cebu",
-                        "Solinea Resort Condominium": "Cardiff St, Cebu IT Park, Cebu City, Cebu",
-                        "The Alcoves": "Luz, Cebu City, Cebu",
-                        "Park Point Residences": "Cardinal Rosales Ave, Cebu City, Cebu",
-                        "Amara Subdivision": "Catarman, Liloan, Cebu",
-                        "Amaia Steps Mandaue": "Plaridel St, Mandaue City, Cebu",
-                        "Cebu IT Park Residences": "Jose Maria del Mar St, Cebu City, Cebu",
-                        "Marco Polo Residences": "Nivel Hills, Lahug, Cebu City, Cebu"
-                      }[bookingFormData.location]) || ""}
+                      value={realtyProjects.find(p => p.name === bookingFormData.location)?.address || ""}
                       className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-slate-650 dark:text-slate-350 focus:outline-none cursor-not-allowed"
                     />
-                    {addressInputFocused && !(({
-                      "Avida Towers Riala": "Apas, Cebu IT Park, Cebu City, Cebu",
-                      "Solinea Resort Condominium": "Cardiff St, Cebu IT Park, Cebu City, Cebu",
-                      "The Alcoves": "Luz, Cebu City, Cebu",
-                      "Park Point Residences": "Cardinal Rosales Ave, Cebu City, Cebu",
-                      "Amara Subdivision": "Catarman, Liloan, Cebu",
-                      "Amaia Steps Mandaue": "Plaridel St, Mandaue City, Cebu",
-                      "Cebu IT Park Residences": "Jose Maria del Mar St, Cebu City, Cebu",
-                      "Marco Polo Residences": "Nivel Hills, Lahug, Cebu City, Cebu"
-                    }[bookingFormData.location]) || "") && (
+                    {addressInputFocused && !(realtyProjects.find(p => p.name === bookingFormData.location)?.address) && (
                       <small className="block mt-1 text-red-650 dark:text-red-400 font-bold transition-all animate-pulse">Required field</small>
                     )}
                   </div>

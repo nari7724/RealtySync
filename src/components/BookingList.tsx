@@ -575,7 +575,16 @@ export function BookingList({ currentUser, triggerRefreshStamp, onAddLog }: Book
                           <td className="px-4 py-3 font-bold text-slate-900">{b.clientName}</td>
                           <td className="px-4 py-3 font-bold text-slate-800">{b.appointmentType}</td>
                           <td className="px-4 py-3 text-slate-550">
-                            {b.location ? (REALTY_PROJECT_ADDRESSES[b.location] || b.location) : "Online / Remote Meeting"}
+                            {String(b.appointmentType).toLowerCase() === "site visit" && b.location ? (
+                              <div className="space-y-0.5">
+                                <div className="font-bold text-slate-800">{b.location}</div>
+                                {REALTY_PROJECT_ADDRESSES[b.location] && (
+                                  <div className="text-[10px] text-slate-450 italic font-medium">{REALTY_PROJECT_ADDRESSES[b.location]}</div>
+                                )}
+                              </div>
+                            ) : (
+                              b.location || "Online / Remote Meeting"
+                            )}
                           </td>
                           <td className="px-4 py-3 font-mono text-slate-900 font-bold">{formatTimeWithAMPM(b.appointmentTime)}</td>
                           <td className="px-4 py-3 font-extrabold">{b.agentName}</td>

@@ -516,7 +516,7 @@ function generateRandomPassword(): string {
 
 async function simulateEmailSend(email: string, subject: string, body: string) {
   const apiKey = process.env.RESEND_API_KEY;
-  let fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  let fromEmail = process.env.RESEND_FROM_EMAIL || "aspire88admin@aspire88.com";
   
   console.log(`[Email Dispatched Log] To: ${email}, Subject: ${subject}`);
   
@@ -533,7 +533,7 @@ async function simulateEmailSend(email: string, subject: string, body: string) {
     fromEmail = "onboarding@resend.dev";
   }
 
-  const sendWithFrom = async (from: string): Promise<{ ok: boolean; status: number; text: string }> => {
+  const sendWithFrom = async (from: string, recipient: string = email): Promise<{ ok: boolean; status: number; text: string }> => {
     try {
       const formattedBody = body.replace(/\n/g, "<br />");
       const res = await fetch("https://api.resend.com/emails", {
@@ -544,7 +544,7 @@ async function simulateEmailSend(email: string, subject: string, body: string) {
         },
         body: JSON.stringify({
           from: `RealtySync <${from}>`,
-          to: [email],
+          to: [recipient],
           subject: subject,
           html: `
             <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px;">
@@ -574,6 +574,23 @@ async function simulateEmailSend(email: string, subject: string, body: string) {
       result = await sendWithFrom(fromEmail);
     }
 
+    // Handle sandbox validation restrictions pre-emptively or reactively
+    if (!result.ok && (result.status === 403 || result.text.includes("validation_error"))) {
+      let testingEmail = process.env.RESEND_TO_EMAIL || "naresson.casama@gmail.com";
+      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+      const matches = result.text.match(emailRegex);
+      if (matches && matches.length > 0) {
+        // Find an email address that is not onboarding@resend.dev or resend.com to identify the sandbox account owner
+        const found = matches.find(m => !m.endsWith("resend.dev") && !m.endsWith("resend.com"));
+        if (found) {
+          testingEmail = found;
+        }
+      }
+      
+      console.log(`[Resend Sandbox Override] Sandbox restriction detected (attempted to send to ${email}). Re-routing to verified sandbox testing address: ${testingEmail}...`);
+      result = await sendWithFrom(fromEmail, testingEmail);
+    }
+
     if (result.ok) {
       try {
         const data = JSON.parse(result.text);
@@ -599,7 +616,12 @@ async function seedSupabaseIfNeeded() {
     if (error || !data || data.length === 0) {
       console.log("Seeding realty projects into Supabase...");
       for (const name of DEFAULT_REALTY_PROJECTS) {
-        await supabase.from("realty_projects").insert({ name });
+        const address = REALTY_PROJECT_ADDRESSES[name] || "";
+        try {
+          await supabase.from("realty_projects").insert({ name, address });
+        } catch {
+          await supabase.from("realty_projects").insert({ name });
+        }
       }
     }
   } catch (err: any) {
@@ -1159,19 +1181,46 @@ async function fetchAuditLogs(): Promise<AuditLog[]> {
   }
 }
 
-async function fetchRealtyProjects(): Promise<string[]> {
+function formatTimeTo12Hr(timeStr: string | undefined): string {
+  if (!timeStr) return "";
+  const parts = timeStr.split(":");
+  if (parts.length < 2) return timeStr;
+  let hour = parseInt(parts[0], 10);
+  const minute = parts[1];
+  if (isNaN(hour)) return timeStr;
+  const ampm = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12;
+  hour = hour ? hour : 12; // the hour '0' should be '12'
+  return `${hour}:${minute} ${ampm}`;
+}
+
+const REALTY_PROJECT_ADDRESSES: Record<string, string> = {
+  "Avida Towers Riala": "Apas, Cebu IT Park, Cebu City, Cebu",
+  "Solinea Resort Condominium": "Cardiff St, Cebu IT Park, Cebu City, Cebu",
+  "The Alcoves": "Luz, Cebu City, Cebu",
+  "Park Point Residences": "Cardinal Rosales Ave, Cebu City, Cebu",
+  "Amara Subdivision": "Catarman, Liloan, Cebu",
+  "Amaia Steps Mandaue": "Plaridel St, Mandaue City, Cebu",
+  "Cebu IT Park Residences": "Jose Maria del Mar St, Cebu City, Cebu",
+  "Marco Polo Residences": "Nivel Hills, Lahug, Cebu City, Cebu"
+};
+
+async function fetchRealtyProjects(): Promise<{ name: string; address?: string }[]> {
   try {
-    const { data, error } = await supabase.from("realty_projects").select("name");
+    const { data, error } = await supabase.from("realty_projects").select("name, address");
     if (error) {
-      console.warn("Supabase exception fetching realty_projects, falling back to memory:", error.message);
-      return memoryRealtyProjects;
+      console.warn("Supabase exception fetching realty_projects, trying only name:", error.message);
+      const { data: dataOnlyName, error: errOnlyName } = await supabase.from("realty_projects").select("name");
+      if (errOnlyName) {
+        console.warn("Supabase exception fetching realty_projects name:", errOnlyName.message);
+        return memoryRealtyProjects.map(name => ({ name, address: REALTY_PROJECT_ADDRESSES[name] || "" }));
+      }
+      return (dataOnlyName || []).map(p => ({ name: p.name, address: REALTY_PROJECT_ADDRESSES[p.name] || "" }));
     }
-    const dbProjects = (data || []).map(p => p.name);
-    memoryRealtyProjects = dbProjects;
-    return dbProjects;
+    return (data || []).map(p => ({ name: p.name, address: p.address || REALTY_PROJECT_ADDRESSES[p.name] || "" }));
   } catch (err: any) {
     console.warn("Exception in fetchRealtyProjects, falling back to memory:", err.message);
-    return memoryRealtyProjects;
+    return memoryRealtyProjects.map(name => ({ name, address: REALTY_PROJECT_ADDRESSES[name] || "" }));
   }
 }
 
@@ -2609,7 +2658,7 @@ async function startServer() {
       res.json(projects);
     } catch (err: any) {
       console.error("GET /api/realty-projects error:", err);
-      res.json(DEFAULT_REALTY_PROJECTS);
+      res.json(DEFAULT_REALTY_PROJECTS.map(name => ({ name, address: REALTY_PROJECT_ADDRESSES[name] || "" })));
     }
   });
 
@@ -2999,7 +3048,8 @@ async function startServer() {
           const agent = agents.find((a: any) => a.id === b.agentId);
           if (agent) {
             const title = `🚨 Upcoming Schedule Reminder (1 HR Notice)`;
-            const message = `REALTYSYNC NOTICE: Hi ${agent.firstName} ${agent.lastName}, you have a "${b.appointmentType}" appointment scheduled with client "${b.clientName}" in 1 hour (at ${b.appointmentTime} on ${b.appointmentDate}). Please prepare!`;
+            const formattedTime = formatTimeTo12Hr(b.appointmentTime);
+            const message = `REALTYSYNC NOTICE: Hi ${agent.firstName} ${agent.lastName}, you have a "${b.appointmentType}" appointment scheduled with client "${b.clientName}" in 1 hour (at ${formattedTime} on ${b.appointmentDate}). Please prepare!`;
 
             // 1. Mark notified in database
             b.notified1Hr = true;

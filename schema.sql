@@ -112,7 +112,8 @@ CREATE TABLE IF NOT EXISTS "audit_logs" (
 -- 8. Realty Projects list table
 CREATE TABLE IF NOT EXISTS "realty_projects" (
   "id" SERIAL PRIMARY KEY,
-  "name" TEXT UNIQUE NOT NULL
+  "name" TEXT UNIQUE NOT NULL,
+  "address" TEXT
 );
 
 
@@ -146,16 +147,16 @@ SET "email" = EXCLUDED."email", "password" = EXCLUDED."password";
 -- ==========================================================
 
 -- Seed Projects
-INSERT INTO "realty_projects" ("name") VALUES 
-  ('Avida Towers Riala'),
-  ('Solinea Resort Condominium'),
-  ('The Alcoves'),
-  ('Park Point Residences'),
-  ('Amara Subdivision'),
-  ('Amaia Steps Mandaue'),
-  ('Cebu IT Park Residences'),
-  ('Marco Polo Residences')
-ON CONFLICT ("name") DO NOTHING;
+INSERT INTO "realty_projects" ("name", "address") VALUES 
+  ('Avida Towers Riala', 'Apas, Cebu IT Park, Cebu City, Cebu'),
+  ('Solinea Resort Condominium', 'Cardiff St, Cebu IT Park, Cebu City, Cebu'),
+  ('The Alcoves', 'Luz, Cebu City, Cebu'),
+  ('Park Point Residences', 'Cardinal Rosales Ave, Cebu City, Cebu'),
+  ('Amara Subdivision', 'Catarman, Liloan, Cebu'),
+  ('Amaia Steps Mandaue', 'Plaridel St, Mandaue City, Cebu'),
+  ('Cebu IT Park Residences', 'Jose Maria del Mar St, Cebu City, Cebu'),
+  ('Marco Polo Residences', 'Nivel Hills, Lahug, Cebu City, Cebu')
+ON CONFLICT ("name") DO UPDATE SET "address" = EXCLUDED."address";
 
 -- Seed Agents
 INSERT INTO "agents" ("id", "firstName", "middleName", "lastName", "email", "mobileNumber", "prcLicenseNumber", "status", "createdAt") VALUES
